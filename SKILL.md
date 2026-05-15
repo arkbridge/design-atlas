@@ -1,6 +1,6 @@
-# Mobbin Screen Atlas
+# Design Atlas
 
-<command-name>mobbin-screen-atlas</command-name>
+<command-name>design-atlas</command-name>
 
 ## Description
 
@@ -10,9 +10,9 @@ The output unit of research is the **screen**. Each screen accumulates 4–8 ref
 
 ## Triggers
 
-- `/mobbin-screen-atlas <product-name>`
-- "screen atlas for X"
+- `/design-atlas <product-name>`
 - "design atlas for X"
+- "screen atlas for X"
 - "per-screen inspiration for X"
 - "research every screen of X"
 

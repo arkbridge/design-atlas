@@ -42,7 +42,7 @@ A paid Mobbin plan is required for full library access (621K+ screens, 142K+ flo
 This skill is a single `SKILL.md` (the agent prompt) plus a `template.html` (the atlas scaffold). Drop both into your Claude Code skills directory:
 
 ```bash
-git clone https://github.com/arkbridge/mobbin-screen-atlas.git ~/.claude/skills/mobbin-screen-atlas
+git clone https://github.com/arkbridge/design-atlas.git ~/.claude/skills/design-atlas
 ```
 
 Or copy `SKILL.md` + `template.html` into wherever your project keeps Claude Code skills.
@@ -52,15 +52,15 @@ Or copy `SKILL.md` + `template.html` into wherever your project keeps Claude Cod
 In any Claude Code session:
 
 ```
-/mobbin-screen-atlas <product-name>
+/design-atlas <product-name>
 ```
 
 The skill takes over with a Phase 1 alignment interview, then enumerates screens, then dispatches parallel Mobbin queries, then opens the atlas in your browser for triage.
 
 Other natural triggers:
 
-- "screen atlas for X"
 - "design atlas for X"
+- "screen atlas for X"
 - "per-screen inspiration for X"
 - "research every screen of X"
 
