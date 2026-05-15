@@ -1,0 +1,15 @@
+# Skill scratch / generated output (per-run, not source)
+data/
+**/_atlas-work/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*

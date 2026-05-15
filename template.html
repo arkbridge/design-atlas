@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{PRODUCT_NAME}} — Screen Atlas</title>
+<style>
+  :root {
+    --bg: #f5f1e6;
+    --panel: #fdfbf3;
+    --panel-2: #ede7d6;
+    --panel-3: #e2dbc7;
+    --line: #cec6ad;
+    --line-2: #a59c81;
+    --line-3: #7d7560;
+    --ink: #1b1813;
+    --ink-2: #4c4638;
+    --ink-3: #7a7361;
+    --ink-4: #a39c87;
+    --accent: #8a4f1a;
+    --accent-2: #2c5a76;
+    --good: #3f6f4b;
+    --warn: #a8451f;
+    --serif: "Iowan Old Style", "IBM Plex Serif", "Georgia", "Times New Roman", serif;
+    --sans: "Inter", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", "Berkeley Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  a:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
+  }
+  nav.side {
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    padding: 36px 24px;
+    position: sticky; top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  nav.side h1 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+    margin: 0 0 4px 0;
+    letter-spacing: -0.012em;
+  }
+  nav.side .meta {
+    color: var(--ink-3);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  nav.side details { margin-bottom: 10px; }
+  nav.side summary {
+    cursor: pointer;
+    list-style: none;
+    color: var(--ink-3);
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 6px 0;
+    user-select: none;
+  }
+  nav.side summary::-webkit-details-marker { display: none; }
+  nav.side summary::before {
+    content: "▸";
+    display: inline-block;
+    width: 14px;
+    color: var(--ink-4);
+    transition: transform 0.15s;
+  }
+  nav.side details[open] summary::before { transform: rotate(90deg); }
+  nav.side ul { list-style: none; padding: 0 0 8px 14px; margin: 4px 0 8px 0; }
+  nav.side a {
+    color: var(--ink);
+    text-decoration: none;
+    border: none;
+    display: block;
+    padding: 4px 0 4px 10px;
+    border-left: 1px solid var(--line);
+    font-size: 13px;
+    font-family: var(--sans);
+  }
+  nav.side a:hover { color: var(--accent); border-left-color: var(--accent); }
+  main {
+    padding: 64px 72px 96px;
+    max-width: 1120px;
+  }
+  header.hero {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 44px;
+    margin-bottom: 56px;
+  }
+  .meta-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 32px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .meta-bar .right { color: var(--ink-2); }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 18px;
+  }
+  header.hero h1 {
+    font-family: var(--serif);
+    font-size: 64px;
+    font-weight: 400;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    margin: 0 0 24px 0;
+  }
+  header.hero .lede {
+    font-family: var(--serif);
+    font-size: 21px;
+    line-height: 1.45;
+    color: var(--ink);
+    max-width: 720px;
+    margin: 0 0 16px 0;
+  }
+  header.hero .lede.dim { color: var(--ink-2); }
+  header.hero .badges { display: flex; gap: 0; flex-wrap: wrap; margin-top: 28px; border: 1px solid var(--line); background: var(--panel); }
+  .badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-2);
+    padding: 12px 18px;
+    border-right: 1px solid var(--line);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge:last-child { border-right: none; }
+  .badge .v { color: var(--accent); }
+
+  /* Surface dividers */
+  section.surface-intro {
+    border-top: 1px solid var(--line);
+    padding-top: 48px;
+    margin-top: 56px;
+  }
+  section.surface-intro h2 {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    margin: 0 0 14px 0;
+  }
+  section.surface-intro .surface-kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  section.surface-intro p {
+    color: var(--ink-2);
+    max-width: 700px;
+    font-size: 15px;
+  }
+
+  /* Screen card */
+  section.screen {
+    border-top: 1px solid var(--line);
+    padding: 44px 0;
+    scroll-margin-top: 24px;
+  }
+  section.screen .screen-hd {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 36px;
+    align-items: end;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+    margin-bottom: 28px;
+  }
+  section.screen .screen-hd .id {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  section.screen .screen-hd h3 {
+    font-family: var(--serif);
+    font-size: 30px;
+    font-weight: 500;
+    margin: 8px 0 0;
+    letter-spacing: -0.012em;
+  }
+  section.screen .screen-hd .meta {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+  section.screen .screen-hd .meta div { padding: 3px 0; }
+  section.screen .screen-hd .meta span { color: var(--ink-3); margin-right: 8px; }
+
+  section.screen .substates {
+    display: flex; gap: 0;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+  }
+  section.screen .substate {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-2);
+    padding: 9px 14px;
+    border-right: 1px solid var(--line);
+    letter-spacing: 0.04em;
+  }
+  section.screen .substate:last-child { border-right: none; }
+  section.screen .substate strong { color: var(--accent); font-weight: 500; margin-right: 6px; }
+
+  .references {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+    margin-bottom: 32px;
+  }
+  .ref {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+  .ref .thumb {
+    aspect-ratio: 4 / 3;
+    background: var(--panel-2);
+    background-size: cover;
+    background-position: center top;
+    border-bottom: 1px solid var(--line);
+  }
+  .ref .body { padding: 14px 16px 16px; flex: 1; display: flex; flex-direction: column; }
+  .ref .app {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .ref .flow {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-bottom: 10px;
+    font-family: var(--mono);
+  }
+  .ref .analysis {
+    font-size: 13.5px;
+    color: var(--ink);
+    flex: 1;
+    line-height: 1.5;
+  }
+  .ref a.source {
+    display: block;
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-decoration: none;
+    border: none;
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .ref a.source:hover { color: var(--accent); }
+
+  .pattern {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    padding: 22px 26px;
+    margin-bottom: 16px;
+  }
+  .pattern .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .pattern p {
+    margin: 0 0 12px 0;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .pattern p:last-child { margin-bottom: 0; }
+  .pattern .stack-hint {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+    letter-spacing: 0.06em;
+  }
+
+  footer.appendix {
+    border-top: 1px solid var(--line);
+    margin-top: 80px;
+    padding-top: 52px;
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+  footer.appendix h3 {
+    font-family: var(--serif);
+    color: var(--ink);
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 14px 0;
+  }
+  footer.appendix h3 + p { color: var(--ink-3); margin-bottom: 14px; }
+  footer.appendix pre {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 18px 22px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    margin: 0 0 28px 0;
+  }
+
+  @media print {
+    .layout { grid-template-columns: 1fr; }
+    nav.side { display: none; }
+    main { padding: 36px; }
+    section.screen, section.surface-intro { break-inside: avoid; }
+    .ref { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="side">
+    <h1>{{PRODUCT_NAME}}</h1>
+    <div class="meta">screen atlas · {{DATE}}</div>
+    {{SIDEBAR}}
+  </nav>
+  <main>
+    <div class="meta-bar">
+      <span>{{PRODUCT_NAME}} &nbsp;·&nbsp; SCREEN ATLAS</span>
+      <span class="right">{{CONTEXT_LINE}}</span>
+    </div>
+    <header class="hero">
+      <div class="kicker">Screen Atlas — {{REGISTER}}</div>
+      <h1>{{PRODUCT_NAME}}.</h1>
+      <p class="lede">{{SUMMARY_1}}</p>
+      <p class="lede dim">{{SUMMARY_2}}</p>
+      <div class="badges">
+        <span class="badge"><span class="v">{{SCREEN_COUNT}}</span> &nbsp; screens</span>
+        <span class="badge"><span class="v">{{REFERENCE_COUNT}}</span> &nbsp; references</span>
+        <span class="badge">{{PLATFORM}}</span>
+        <span class="badge">{{REGISTER}}</span>
+      </div>
+    </header>
+    {{SCREENS}}
+    <footer class="appendix">
+      <h3>Alignment Interview</h3>
+      <p>Verbatim signals locked at session start. Cross-reference for any future screen-atlas runs on this product.</p>
+      <pre>{{INTERVIEW}}</pre>
+      <h3>Mobbin Query Log</h3>
+      <p>Query angles run per screen, for reproducibility.</p>
+      <pre>{{QUERY_LOG}}</pre>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
