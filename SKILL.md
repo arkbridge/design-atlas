@@ -91,6 +91,35 @@ These rules emerged from end-to-end runs. Any future run that violates one of th
    
    **This rule exists because of silent-failure incidents:** SVG paths with `%` units (rendered nothing) + brand-logo URLs that 404'd as broken-image placeholders. Both passed every non-visual check.
 
+   **Sub-rule 8.a — Visual sample-check on screenshot captures.** When auto-capturing marketing-site references via thum.io / Chrome headless, HTTP-200 is NOT sufficient to declare the capture valid. Three failure modes pass every HTTP / file-size / asset-existence check:
+
+   - **404 pages return HTTP 200.** A site's custom "Page not found" page is still a valid HTML response. The screenshot renders successfully, the PNG is non-empty, the URL is "live" — but the content is useless.
+   - **Popup/modal overlays cover the page.** Some sites (Substack-hosted newsletters in particular) inject a full-page subscribe modal that the screenshot captures INSTEAD of the marketing page itself.
+   - **Domain-without-path captures are valid but generic.** Capturing `notboring.co/` gets the subscribe popup; capturing `vercel.com/contact/sales` may 404 if the path is wrong.
+
+   **Required before declaring a capture batch done:**
+
+   ```bash
+   # 1. Dup-hash audit — any duplicate hash means same content captured twice
+   for f in ref-images/*.png; do echo "$(md5 -q "$f") $f"; done | sort | \
+     awk '{if($1==prev){if(!shown){print prevline;shown=1}print}else{prev=$1;prevline=$0;shown=0}}'
+
+   # 2. Suspect-size flag — 404 pages and blank captures often <80KB
+   ls -la ref-images/*.png | awk '$5 < 80000 {print $5, $9}'
+
+   # 3. Visual sample — vision-read at MINIMUM:
+   #    - 1 random ref per section
+   #    - EVERY ref where source_url has a path beyond `/` (non-homepage URLs are most likely to 404)
+   #    - EVERY suspect from steps 1 + 2
+   # Assert content matches expected genre AND does not show "Page not found" / "404" / popup overlay text.
+   ```
+
+   **Sub-rule 8.b — URL pre-flight before capture.** For non-homepage URLs (any `source_url` with a path beyond `/`), run `curl -sL -o /dev/null -w "%{http_code} %{url_effective}\n" "$url"` first. Treat 200 responses with `<title>404</title>` or `<title>Page not found</title>` as failed. Replace those URLs before capture, not after.
+
+   **Sub-rule 8.c — Subagent reports are NOT sufficient.** When dispatching a research subagent for batch capture, its "all retried successfully" / "all captures valid" report does not satisfy the verification gate. The parent MUST run the dup-hash audit + suspect-size flag + visual sample-check from sub-rule 8.a before treating the batch as done.
+
+   **This rule exists because of a real capture-batch failure:** 9 of 53 marketing-site captures shipped broken in one run — 3× a non-existent `/manifesto` URL that rendered as a brand-styled 404, 1× a `/contact` URL that also 404'd, 1× a Substack-hosted site that returned its subscribe-popup overlay instead of the page, 5× same-URL dups where hero-section URLs were reused for footer/CTA slots without scroll differentiation. The dispatched subagent reported "all captures valid"; all 9 passed HTTP-200; all rendered non-empty PNGs. The user flagged on review: *"it seems like there are lots of repeats of images, also, a good amount of the images were a 404 error page."* Required a full repair pass. Every future capture run that skips the dup-hash audit + visual sample-check will reproduce this.
+
 9. **Component buffet = real DOM, not cropped JPEGs (Path B).** Buffet picker variants MUST be rendered as live HTML/CSS components, not images of components. See Phase 4.75 below for the workflow.
 
 10. **Iteration-count minimization is the KPI.** The success metric is "rounds-of-feedback per project," NOT "speed of single iteration." Slower upfront work with hard gates ships faster overall. Pre-ship self-critical pass is mandatory: re-read every output as if you were the user reviewing it, scanning for gaps the user would flag. If you would correct it as the user, correct it before showing.
@@ -152,6 +181,31 @@ These rules emerged from end-to-end runs. Any future run that violates one of th
 
     **Why this rule exists:** An early atlas iteration shipped with 5-chip stacked-description widgets at minmax(320px, 1fr) grid and received clear UX feedback that the layout was confusing and the framing question wasn't clear about what was being decided. Both complaints — layout AND framing — are preventable by applying ui-design-system rules to the atlas chrome from the start, not just to the design-system deck downstream.
 
+18. **Source mix matches artifact type. Mobbin is for product UI ONLY.**
+
+    Mobbin's catalog is ~95% in-app screens (dashboards, settings, modals, lists, flows). Using it to source references for a marketing site, landing page, conversion funnel, docs site, or any other non-product surface produces a category mismatch: the spec narrates marketing pages (Stripe Press, Linear Method, Vercel home) while the actual reference cards show product dashboards. The user opens the atlas and sees product UI screens for a website project — the cards and the prose are arguing about different categories.
+
+    **Source mix by artifact type (LOCKED):**
+
+    | Artifact type | Primary sources | Secondary | Mobbin allowed? |
+    |---|---|---|---|
+    | `saas-product` | Mobbin (web + mobile via `mcp__mobbin__search_screens`) | Lazyweb (`mcp__plugin_lazyweb_lazyweb__lazyweb_search`), direct app captures | YES — primary |
+    | `mobile-app` | Mobbin (mobile platform filter) | App Store screenshots, direct device captures | YES — primary |
+    | `marketing-site` | Lazyweb (marketing/landing categories), direct `WebFetch` of named ref companies, Land-book, godly.website, SaaSLandingPage, local Refero extractions at `data/reference/design-systems/` | — | NO — except for the signup/sign-in landing if it's part of the site |
+    | `conversion-funnel` | Direct `WebFetch` of named funnels (Stripe Checkout, Calendly, ConvertKit, Webflow pricing), Lazyweb funnel/checkout categories | — | LIMITED — signup flows only, never the product behind the paywall |
+    | `docs-site` | Direct `WebFetch` of named docs (docs.stripe.com, vercel.com/docs, react.dev, Tailwind docs, Anthropic docs), Lazyweb docs category | — | NO |
+    | `hybrid` | Per-section answer — marketing sections use marketing sources, product sections use Mobbin | — | PER-SECTION |
+
+    **Phase 3 dispatch rule (enforced):** Before any per-screen research subagent runs, check `alignment.artifact_type`. If it is anything OTHER than `saas-product` or `mobile-app`, the subagent MUST NOT call `mcp__mobbin__search_screens` as its primary source. It MUST use the artifact-type-appropriate source mix above. Mobbin queries for non-product artifact types are allowed only when the screen genre is explicitly a product-shaped sub-surface inside a marketing context (e.g., the signup form on a marketing site, the in-app demo screenshot embedded in a feature page).
+
+    **Source-tool reference:**
+    - **Lazyweb** — `mcp__plugin_lazyweb_lazyweb__lazyweb_search` for screenshot search, `lazyweb_find_similar` for visual neighbours, `lazyweb_list_categories` to see what's indexed. Best for marketing pages, landing pages, conversion funnels.
+    - **WebFetch** — direct fetch of the named ref company's marketing pages. Pair with screenshot capture via dev-browser (Playwright) if the page renders heavy JS.
+    - **Land-book / godly.website / SaaSLandingPage** — public marketing-site galleries, reachable via `WebFetch` of the gallery URL with a `prompt` asking for top examples in a genre.
+    - **Refero** — already locally indexed at `data/reference/design-systems/` per 2026-05-04 extractions. Check this FIRST for marketing-site references before going external.
+
+    **Why this rule exists:** A real marketing-site atlas run shipped with 53 Mobbin product-UI references while the prose recommendations correctly named marketing-site anchors (Stripe Press, Linear Method, Brilliant, Peec AI, Deputy). The reference cards and the spec were arguing about different categories — the user opened the atlas and saw product dashboards for what should have been a marketing-site design. Caught on review; rebuild required. Future runs that violate this rule will reproduce the same mismatch.
+
 ---
 
 ## Vertical Extensibility — beyond SaaS products
@@ -170,6 +224,7 @@ This skill's workflow + rules apply DIRECTLY to:
 | **Phase 1 alignment** | "register / mood / brand anchors" | Add: conversion goal · target persona · funnel position · primary CTA |
 | **Phase 1 reference companies** | Linear, Vercel, Stripe Atlas | Add: Stripe.com (marketing), Linear.app (marketing), Notion.so/product, Cal.com landing, Apple Vision Pro page |
 | **Phase 2.5 genre lock** | briefing-document, dashboard, etc. | Add: hero-landing · pricing-page · feature-page · testimonial-wall · funnel-step · email-capture · checkout-step · post-conversion-thank-you · long-form-sales-letter · interactive-demo · blog-post · changelog |
+| **Phase 3 source mix** | Mobbin primary (web/mobile platform filter) | **Mobbin EXCLUDED.** Lazyweb primary → local Refero library → direct WebFetch of Phase-1 named anchors → gallery sites (Land-book / godly.website / SaaSLandingPage). See Hard Rule 18 for the full table. |
 | **Phase 4.75 component buffet** | button, input, card, chip, etc. | Add: hero-CTA, sticky-conversion-bar, social-proof-row, pricing-tier-card, testimonial-quote-card, FAQ-accordion, comparison-table, feature-highlight, video-embed, scroll-triggered-modal |
 | **Phase 5.5 layers** | help/chat sidebar, slide-over, modal, command palette, etc. | Add: cookie-banner · exit-intent-popup · sticky-bottom-CTA · scroll-progress-bar · live-chat-widget · upsell-overlay · video-lightbox |
 
@@ -278,7 +333,19 @@ For each approved screen, parallel-dispatch subagents (one per surface bucket, m
 
 1. **Generate 1–3 query angles per screen** — different vocabularies targeting the same screen. Example for "billing settings": "billing settings subscription management" / "plan upgrade SaaS" / "invoice history payment method".
 
-2. **Run Mobbin MCP queries** — `mcp__mobbin__search_screens` with `platform: "web"`, `mode: "fast"`, `limit: 8`. Cap results, dedupe across angles. **Discard the inline base64 image data** in working notes — keep only `app_name`, `flow_name`, `mobbin_url`, `image_url`.
+2. **Run reference queries per the artifact-type source mix (Hard Rule 18).** Look up `alignment.artifact_type` and pick the source mix:
+
+   - **`saas-product` / `mobile-app`** → `mcp__mobbin__search_screens` with `platform: "web"` (or `"ios"`/`"android"` for mobile), `mode: "fast"`, `limit: 8`. Cap results, dedupe across angles. **Discard the inline base64 image data** in working notes — keep only `app_name`, `flow_name`, `mobbin_url`, `image_url`.
+
+   - **`marketing-site` / `conversion-funnel` / `docs-site`** → DO NOT call Mobbin. Use the artifact-type source mix:
+     1. **Lazyweb first** — `mcp__plugin_lazyweb_lazyweb__lazyweb_search` with a genre-appropriate query (e.g., "SaaS landing hero", "pricing page three tier", "checkout single field"). Use `lazyweb_list_categories` to see what's indexed. Pull 6-10 candidates per screen.
+     2. **Local Refero library next** — check `data/reference/design-systems/` for already-extracted marketing-site references that match the register the user named in Phase 1.
+     3. **Direct `WebFetch` of the named Phase-1 reference companies** — for every company the user locked as a reference anchor (Phase 1 Q3a), fetch the relevant marketing page directly. Example for a hero section with Stripe Press as anchor: `WebFetch(url="https://press.stripe.com", prompt="describe the hero layout, typography, palette, and any annotated linework or schematic devices")`. The narrative description fills the analysis block; the URL is the citation.
+     4. **Gallery sites as fill-in** — Land-book, godly.website, SaaSLandingPage, and similar gallery URLs are reachable via `WebFetch` for genre-tagged exemplars when the named anchors don't cover a section.
+
+   - **`hybrid`** → branch per-section based on the section's genre. Marketing-genre sections (`hero-landing`, `pricing-page`, etc.) take the marketing source mix; product-genre sections (`dashboard`, `ledger-table`, etc.) take the Mobbin mix.
+
+   For non-Mobbin sources, keep the same slim JSON shape per ref: `{source_app, source_url, image_path, screen_id, ref_idx}`. `source_url` replaces `mobbin_url` for citation. `image_path` is captured via screenshot (Playwright via `dev-browser`) or direct PNG/JPG download from the gallery; the local-image-path rule (Hard Rule 1) still applies — atlases that link to remote URLs break on second open.
 
 3. **Curate 4–8 references per screen.** Selection criteria: source-app quality, register fit, app diversity (no more than 1–2 refs from same app), honor anti-references.
 
