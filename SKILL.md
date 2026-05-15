@@ -1,10 +1,10 @@
-# Design Atlas
+# Design Atlas — v2
 
 <command-name>design-atlas</command-name>
 
 ## Description
 
-Take a product idea, run an alignment interview, enumerate every screen the SaaS will need, query Mobbin's MCP per screen for tailored inspiration WITH structured design-system observations, and produce a single bundled HTML atlas with **embedded per-reference feedback collection**. After you review and submit feedback, the skill synthesizes a locked design-system deck (tokens + components + wireframes). The scaffold step (turning the design system into a working clickable+animated localhost frontend) lives in a sister skill that runs only after the design-system deck is reviewed.
+Take a product idea, run an alignment interview, enumerate every screen the SaaS will need, query Mobbin's MCP per screen for tailored inspiration WITH structured design-system observations, and produce a single bundled HTML atlas with **embedded per-reference feedback collection**. After the user reviews and submits feedback, synthesize a locked design-system deck (tokens + components + wireframes). The scaffold step (turning the design system into a working clickable+animated localhost frontend) lives in a sister skill that runs only after the design-system deck is reviewed.
 
 The output unit of research is the **screen**. Each screen accumulates 4–8 references with structured observations the synthesis stage runs on.
 
@@ -16,19 +16,19 @@ The output unit of research is the **screen**. Each screen accumulates 4–8 ref
 - "per-screen inspiration for X"
 - "research every screen of X"
 
-## Why a feedback-gated atlas
+## Why v2 (changes from v1)
 
-A naive v1 of this workflow produced an atlas + design system in one pass with no feedback gate. Three problems surfaced:
+v1 produced an atlas + design system in one pass with no feedback gate. Three problems surfaced:
 
 1. **Reference analyses were screen-pattern level**, not design-system-token level. Synthesis ran on prose, not structured observations — produced a watery system.
-2. **No feedback loop.** Synthesis used the unfiltered research. Anything you would have rated "anti-pattern" still leaked in.
+2. **No feedback loop.** Synthesis used the unfiltered research. Anything the user would have rated "anti-pattern" still leaked in.
 3. **Design system + scaffold conflated.** Bundling code-generation into synthesis hid quality issues (e.g. invisible-text contrast bugs that would have surfaced in a separate verification step).
 
-This version fixes all three: structured observations during research, in-HTML feedback collection with hard gate, design-system synthesis that ONLY produces the visual deck, scaffold deferred to a sister skill.
+v2 fixes all three: structured observations during research, in-HTML feedback collection with hard gate, design-system synthesis that ONLY produces the visual deck, scaffold deferred to a sister skill.
 
-## Hard Rules (do NOT violate)
+## Hard Rules (do NOT violate — added 2026-05-13 after v2 first-ship review)
 
-These rules emerged from real end-to-end runs. Any future run that violates one will reproduce a known bad output.
+These rules emerged from the first end-to-end run. Any future run that violates one of them will reproduce a known bad output.
 
 1. **Mobbin image URLs expire — save locally during Phase 3.** The `image_url` returned by `mcp__mobbin__search_screens` is an MCP-session-scoped shortlink (`https://mobbin.com/api/mcp/short/...`) that returns HTTP 410 Gone after the session ends. **But freshly-fetched shortlinks return HTTP 200** — only previously-stored ones expire. So the working pattern is: in the SAME agent session that runs the Mobbin search, immediately `curl -L -o {local_path} "{fresh_image_url}"` via Bash. (Mobbin's JSON response does NOT expose base64 — it's only delivered as a model-visible attachment, not a programmatic field. So curl on the fresh URL is the correct path, not base64 decode.) Save as `data/_atlas-work/ref-images/{bucket}-{screen-id}-{ref_idx}.jpg`, update each ref's JSON with `local_image_path`. The atlas template uses `<img class="thumb" loading="lazy" src="{local_image_path}">` — NEVER `style="background-image:url(image_url)"`. Atlas with original Mobbin URLs = broken thumbnails on second open.
 
@@ -40,7 +40,7 @@ These rules emerged from real end-to-end runs. Any future run that violates one 
 
 5. **Hard gates between phases.** Phase 2→3 (sitemap confirm), Phase 4→5 (feedback JSON paste), Phase 5→6 (design-system review). Skipping any of these = guaranteed re-do.
 
-6. **Discriminator audit before ship.** Before declaring any UI surface done, walk EVERY visual primitive and verify polish parity:
+6. **Discriminator audit before ship** *(added 2026-05-14, see [[feedback_discriminator_audit]])*. Before declaring any UI surface done, walk EVERY visual primitive and verify polish parity:
    - Buttons + their states (hover, focus, disabled)
    - Cards + hover treatment + layered shadows
    - Charts (gradient fills, inner shines)
@@ -54,10 +54,10 @@ These rules emerged from real end-to-end runs. Any future run that violates one 
    - Form inputs + focus rings
    - Status dots + pulse animations
    - Background gradients + inset highlights
+   
+   If ANY primitive is at default-CSS quality (flat solid color, 1px border, no shadow, no hover affordance), the surface FAILS the audit and gets fixed before showing the user. **This rule exists because polish trickle-down failed TWICE in the v4 build:** Round 1 had charts flat while cards polished. Round 2 had progress bars flat while buttons polished. Same failure mode, two rounds in a row, both preventable.
 
-   If ANY primitive is at default-CSS quality (flat solid color, 1px border, no shadow, no hover affordance), the surface FAILS the audit and gets fixed before showing the user. **This rule exists because polish trickle-down failed TWICE in real builds:** Round 1 had charts flat while cards polished. Round 2 had progress bars flat while buttons polished. Same failure mode, two rounds in a row, both preventable.
-
-7. **Genre lock as Phase 1 question.** Before designing any surface, name its genre EXPLICITLY from a fixed vocabulary BEFORE picking the layout. Acceptable genres:
+7. **Genre lock as Phase 1 question** *(added 2026-05-14, see [[feedback_genre_lock]])*. Before designing any surface, name its genre EXPLICITLY from a fixed vocabulary BEFORE picking the layout. Acceptable genres:
    - `briefing-document` — narrative prose, dated, executive-summary on top (FT lead-story register)
    - `dashboard` — tile cards, KPIs, glanceable multi-source aggregation
    - `ledger-table` — dense tabular data, sortable, filterable, hover-row, audit-trail aesthetic
@@ -70,17 +70,17 @@ These rules emerged from real end-to-end runs. Any future run that violates one 
    - `canvas` — freeform spatial layout, draggable nodes
    - `wizard` — linear N-of-M step flow with progress bar
    - `composition` — real DOM components on styled background (design lab itself)
+   
+   Genre lock prevents the Org-Pulse-as-tile-cards failure (default dashboard pattern was wrong because the surface was actually a briefing-document) and the agent-org-chart-as-list failure (correct genre was family-tree). **Default-genre-by-vibe is forbidden. Name it, lock it, then design.**
 
-   Genre lock prevents the "everything-becomes-tile-cards" failure (default dashboard pattern was wrong because the surface was actually a briefing-document) and the "org-chart-as-list" failure (correct genre was family-tree). **Default-genre-by-vibe is forbidden. Name it, lock it, then design.**
-
-8. **Asset-verification gate.** Anything that can fail silently must be visually verified before "done":
+8. **Asset-verification gate** *(added 2026-05-14, see [[reference_asset_verification_gate]])*. Anything that can fail silently must be visually verified before "done":
    - External image URLs (`<img src>`) → curl-test for HTTP 200 + non-empty body
    - External fonts → load in browser, confirm typography renders
    - SVG paths and viewBox math → render visually, never trust syntax-validity alone
    - Brand logos / 3rd-party assets → spot-check 3-5 to confirm they render
    - `backdrop-filter`, `mask`, modern CSS → test in target browsers, not just Chrome
    - Animations / transitions → open in browser, confirm motion fires
-
+   
    The audit pattern:
    ```bash
    for url in $(grep -oE 'https://[^"]+' output.html | sort -u); do
@@ -88,48 +88,78 @@ These rules emerged from real end-to-end runs. Any future run that violates one 
      echo "$url → $code"
    done
    ```
+   
+   **This rule exists because two silent-failure incidents shipped in v4:** SVG paths with `%` units (rendered nothing) + Slack/Salesforce/Gong Simple Icons URLs (trademark-removed, 404'd as broken-image placeholders). Both passed every non-visual check.
 
-   **This rule exists because two silent-failure incidents shipped previously:** SVG paths with `%` units (rendered nothing) + brand-icon URLs from Simple Icons that were trademark-removed (404'd as broken-image placeholders). Both passed every non-visual check.
+9. **Component buffet = real DOM, not cropped JPEGs (Path B)** *(added 2026-05-14, see [[feedback_real_component_buffet]])*. Buffet picker variants MUST be rendered as live HTML/CSS components, not images of components. See new Phase 4.75 below for the workflow.
 
-9. **Component buffet = real DOM, not cropped JPEGs (Path B).** Buffet picker variants MUST be rendered as live HTML/CSS components, not images of components. See Phase 4.75 below for the workflow.
+10. **Iteration-count minimization is the KPI** *(added 2026-05-14, see [[feedback_iteration_minimization]])*. The success metric is "rounds-of-feedback per project," NOT "speed of single iteration." Slower upfront work with hard gates ships faster overall. Pre-ship self-critical pass is mandatory: re-read every output as if I were Michael, looking for the gaps he'd flag. If I would correct it as Michael, correct it before showing.
 
-10. **Iteration-count minimization is the KPI.** The success metric is "rounds-of-feedback per project," NOT "speed of single iteration." Slower upfront work with hard gates ships faster overall. Pre-ship self-critical pass is mandatory: re-read every output as if you were the user reviewing it, looking for the gaps they'd flag. If you would correct it as them, correct it before showing.
-
-11. **Layout discipline — content dictates container.** Every UI surface renders at its target viewport width. Preview containers narrower than target = horizontally scrollable, NEVER compressing content. The 7 sub-rules:
-
+11. **Layout discipline — content dictates container** *(added 2026-05-14, see [[feedback_content_dictates_container]])*. Every UI surface renders at its target viewport width. Preview containers narrower than target = horizontally scrollable, NEVER compressing content. The 7 sub-rules:
+    
     a. **Native-dimension render** — components render at their design target width; deck containers scroll
     b. **Min-width discipline** — every card/panel/button row gets explicit `min-width` based on longest content; `1fr` is BANNED for content with minimum viable size
     c. **Fixed-pixel grid columns for variants** — `repeat(N, MINPX) justify-content: center`, never `repeat(N, 1fr)`
     d. **Button row safety check** — compute `(button1.text_width + gap + button2.text_width + padding)`; if it exceeds container, stack vertically or shrink to icon-only
-    e. **Longest-content measurement at build time** — use a `long_label_safe_width(labels, ...)` helper to compute container min-width from longest realistic label
+    e. **Longest-content measurement at build time** — use `long_label_safe_width(labels, ...)` helper to compute container min-width from longest realistic label
     f. **`overflow: hidden` is opt-in** — default is `visible` or `auto`; never silently clip content
     g. **Multi-width pre-ship check** — open every UI at native width AND at deck's content-column width; if anything looks crushed at narrower width, fix the container (scroll) not the content (don't shrink)
-
+    
     Plus modal-button alignment: action buttons in modals render CENTERED (`justify-content: center`), not right-aligned.
+    
+    **Code-level enforcement (shipped 2026-05-14):** Use the layout primitives in `build_design_system_v4.py` — `variant_grid()`, `button_row()`, `native_scrollable()`, `long_label_safe_width()` — instead of ad-hoc grid/flex CSS. These make violating the rule HARDER than following it.
 
-    **Code-level enforcement:** Use layout primitives like `variant_grid()`, `button_row()`, `native_scrollable()`, `long_label_safe_width()` — instead of ad-hoc grid/flex CSS. These make violating the rule HARDER than following it.
+12. **Z-index discipline — fixed scale by purpose** *(added 2026-05-14, see [[feedback_z_index_discipline]])*. Persistent fixed-position chrome (FAB, sticky CTAs, mobile bottom bars) MUST be at z-index 200 (fixed-tier) — BELOW modal/overlay layers. Modal=400, popover=500, tooltip=600, toast=700. Persistent chrome punching through overlays is always a bug. Plus: when the same overlay can be opened from multiple triggers (toolbar pill, keyboard shortcut, in-page button), lift state to ONE shared context — triggers consume `open()`, never own state. Also: sidebars / left rails / persistent right rails use `position: sticky; top: 0; height: 100vh` — they don't scroll with content.
 
-12. **Z-index discipline — fixed scale by purpose.** Persistent fixed-position chrome (FAB, sticky CTAs, mobile bottom bars) MUST be at z-index 200 (fixed-tier) — BELOW modal/overlay layers. Modal=400, popover=500, tooltip=600, toast=700. Persistent chrome punching through overlays is always a bug. Plus: when the same overlay can be opened from multiple triggers (toolbar pill, keyboard shortcut, in-page button), lift state to ONE shared context — triggers consume `open()`, never own state. Also: sidebars / left rails / persistent right rails use `position: sticky; top: 0; height: 100vh` — they don't scroll with content.
+13. **Status-pill discipline — encode state once, not twice** *(added 2026-05-14, see [[feedback_status_pill_discipline]])*. When displaying state across many items in a grid/list, encode state with ONE color signal per item (border-accent, dot, or row-leading bar) + ONE legend strip explaining colors at the top. NEVER repeat the text label inside every item card ("HEALTHY", "SYNCING" repeated on every row = visual noise + uneven heights when labels wrap). Linear / Stripe / Notion all use this pattern. Plus: activity-feed timestamps go on the RIGHT (after the message, mono tabular-nums), not on the left.
 
-13. **Status-pill discipline — encode state once, not twice.** When displaying state across many items in a grid/list, encode state with ONE color signal per item (border-accent, dot, or row-leading bar) + ONE legend strip explaining colors at the top. NEVER repeat the text label inside every item card ("HEALTHY", "SYNCING" repeated on every row = visual noise + uneven heights when labels wrap). Linear / Stripe / Notion all use this pattern. Plus: activity-feed timestamps go on the RIGHT (after the message, mono tabular-nums), not on the left.
+14. **Operator-dashboard structure — answer 4 questions in order** *(added 2026-05-14, see [[feedback_operator_dashboard_structure]])*. A primary dashboard for an operator role (CEO, founder, ops lead) must answer 4 questions, each with its own surface section, in this order: (1) **What's burning?** = Outstanding KPI tile + right-rail Quick Attention; (2) **What's moving?** = KPI strip of 4-6 tiles with one-glance numbers + deltas; (3) **What do I need to decide today?** = operator action panel (pending decisions, accept/review affordances); (4) **What's coming?** = today's calendar / schedule panel. The hero brief is ~30% of vertical space, NOT 70-100%. Right rail is ALWAYS sticky. Layout: KPI row → narrative middle → 3-panel operator action row → sticky right rail throughout.
 
-14. **Operator-dashboard structure — answer 4 questions in order.** A primary dashboard for an operator role (CEO, founder, ops lead) must answer 4 questions, each with its own surface section, in this order: (1) **What's burning?** = Outstanding KPI tile + right-rail Quick Attention; (2) **What's moving?** = KPI strip of 4-6 tiles with one-glance numbers + deltas; (3) **What do I need to decide today?** = operator action panel (pending decisions, accept/review affordances); (4) **What's coming?** = today's calendar / schedule panel. The hero brief is ~30% of vertical space, NOT 70-100%. Right rail is ALWAYS sticky. Layout: KPI row → narrative middle → 3-panel operator action row → sticky right rail throughout.
+15. **Toast-confirm pattern for mock UIs** *(added 2026-05-14, see [[feedback_toast_confirm_pattern]])*. In any pre-backend or mock prototype, every clickable element gets one of: **Real action** (handler) · **Toast confirm** (`useToast()` with semantic kind/title/body explaining what WOULD happen) · **State toggle** (local useState + visual active-state) · **Modal stub** (multi-step flow opens Modal with form + final toast on submit) · **Remove** (delete the affordance entirely if no fit). Dead buttons are worse than no buttons — clicking with no feedback erodes trust in everything else. Batch toast wirings as the LAST pass over a built UI, not during build.
 
-15. **Toast-confirm pattern for mock UIs.** In any pre-backend or mock prototype, every clickable element gets one of: **Real action** (handler) · **Toast confirm** (`useToast()` with semantic kind/title/body explaining what WOULD happen) · **State toggle** (local useState + visual active-state) · **Modal stub** (multi-step flow opens Modal with form + final toast on submit) · **Remove** (delete the affordance entirely if no fit). Dead buttons are worse than no buttons — clicking with no feedback erodes trust in everything else. Batch toast wirings as the LAST pass over a built UI, not during build.
-
-16. **Cheap-feeling UI smells — match canonical premium patterns.** Three smells to detect + fix:
+16. **Cheap-feeling UI smells — match canonical premium patterns** *(added 2026-05-14, see [[feedback_cheap_feeling_ui_smells]])*. Three smells to detect + fix:
     - **Sparse topbar** (just title + 2 buttons floating) → **workspace-shell pattern**: workspace switcher chip + dividers between functional groups + wider command-palette pill + avatar dropdown
     - **Colored single-letter notification icons** (@ B C S D A) → **type-led design**: small colored dot + KIND label in mono + URGENT items get 3px red left-accent bar + grouped sections (NEEDS YOU / ACTIVITY)
     - **Two-row filter UI** (full-width search + grey ▾ buttons + dashed "+ add filter" chip) → **Linear-style unified single-row filter bar**: `[search] [+ Filter dropdown] [applied chips inline] [→spacer] [Sort ▾] [Density ▾]` with reusable `<FilterBar>` component
-
+    
     Pattern: when ANY UI feels "cheap," ask (a) what's the canonical premium pattern for this surface (Linear / Vercel / Stripe / Notion all reference) (b) what's the SPECIFIC visual smell (sparse / variable-width / orphaned / floating) (c) does it match the design vocabulary already in the app (d) is it reusable enough to lift to a component.
+
+17. **The atlas itself ships with the same polish as the design system it produces** *(added 2026-05-15, see [[feedback_atlas_is_a_first_class_artifact]])*. The Phase 4 atlas HTML is a working artifact Michael uses — not scaffolding to throw away. All `ui-design-system` rules apply to the atlas chrome and feedback widgets, not just to the deck and scaffold. Specific sub-rules that emerged from the Darwin Group run:
+
+    a. **Ref-card grid MIN width = 460px.** `repeat(auto-fill, minmax(460px, 1fr))`. The Phase 4 grid at minmax(320px, 1fr) crushed the 5-chip rating row into 2-line wraps and clipped placeholder text on narrow viewports. 460px gives 2-column max at typical desktop widths and lets the rating row + notes breathe.
+
+    b. **Rating chips are SINGLE-WORD pills, never label + description stacks.** Five chips fit one row at 460px ONLY if each is single-word. Per-chip explanation lives in (i) the always-visible help banner at the top of the page AND (ii) hover `title` tooltips. Stacking `<label>` + `<description>` inside each chip wraps unevenly (`LIFT MOVES` wraps to 2 lines while `OK` stays at 1, producing uneven chip heights).
+
+    c. **Notes inputs are full-width, stacked vertically with labels above — never inline with labels on the left.** Inline labels eat 60-80px of input width on narrow cards, clipping placeholder text. Stacked = full-width input + tiny mono UPPERCASE label above.
+
+    d. **Fieldset legends are ≤6 words, OR the question is moved OUTSIDE the fieldset.** A 14-word legend like "Decision: how does this reference inform Darwin's "Sticky nav / progress rail" section?" breaks the fieldset border, overflows the visible width, and reads worse than a short legend + a separate `<div class="fb-prompt">` above the fieldset. Pattern: `<div class="fb-prompt">How does this inform <strong>SectionName</strong>?</div><fieldset><legend class="visually-hidden">Reference rating</legend>...</fieldset>`.
+
+    e. **Inputs use `font-size: 16px` minimum** to prevent iOS auto-zoom on focus. Placeholder text can be smaller (14px) but the input itself must be ≥16px.
+
+    f. **Touch targets ≥36px on chips/buttons, ≥40px on inputs.** Even on desktop — keeps hit areas forgiving.
+
+    g. **Always-visible help banner with the rating legend.** Top of page, 5-cell grid showing each chip's meaning. Not collapsible, not hidden — the user shouldn't have to scroll back up to remember what "HERO" means.
+
+    h. **`color-scheme` meta + flash-prevention script** required (already in Hard Rule 3, but reinforced here).
+
+    i. **`transition: all` is banned** in atlas CSS too. Specific properties only (`transition: color 0.12s, border-color 0.12s, background-color 0.12s`).
+
+    j. **`tabular-nums` (`font-variant-numeric: tabular-nums`) on every numeric counter** — export-bar stats, ref counts, etc.
+
+    k. **`role="radiogroup"` + `aria-label` on the rating row** for assistive tech; visible `<label>` per chip; hidden radio inputs (whole chip is the click target).
+
+    l. **The framing question must name the SECTION explicitly:** "How does this inform `<section-name>`?" Generic "Rate this reference" leaves the user guessing whether they're rating the screenshot's quality vs its applicability to the design system. Always: applicability TO the named section.
+
+    **Why this rule exists:** The Darwin Group atlas first-pass shipped with 5-chip stacked-description widgets at minmax(320px, 1fr) grid. Michael's feedback: *"the formatting is awful... I am still somewhat confused as to what about the image I am deciding on."* Both complaints — layout AND framing — are preventable by applying ui-design-system rules to the atlas chrome from the start, not just to the design-system deck downstream.
 
 ---
 
 ## Vertical Extensibility — beyond SaaS products
 
+*(Added 2026-05-14 in response to Michael's observation: "this can also be used for websites and funnels etc which is very cool")*
+
 This skill's workflow + rules apply DIRECTLY to:
-- **SaaS product UI** (default framing)
+- **SaaS product UI** (default framing — Darwin Platform, Blue Bullpen, Cortex)
 - **Marketing websites + landing pages** (Stripe.com, Linear.app, Vercel.com style)
 - **Conversion funnels** (signup flow, paywall, checkout, onboarding)
 - **Mobile apps** (iOS / Android product surfaces)
@@ -145,7 +175,7 @@ This skill's workflow + rules apply DIRECTLY to:
 | **Phase 4.75 component buffet** | button, input, card, chip, etc. | Add: hero-CTA, sticky-conversion-bar, social-proof-row, pricing-tier-card, testimonial-quote-card, FAQ-accordion, comparison-table, feature-highlight, video-embed, scroll-triggered-modal |
 | **Phase 5.5 layers** | Brain Chat, slide-over, modal, command palette, etc. | Add: cookie-banner · exit-intent-popup · sticky-bottom-CTA · scroll-progress-bar · live-chat-widget · upsell-overlay · video-lightbox |
 
-**The hard rules (1-16) all transfer unchanged.** Premium polish, discriminator audit, genre lock, asset verification, real-component buffet, iteration minimization, layout discipline, z-index discipline, status-pill discipline, operator-dashboard structure (where applicable), toast-confirm pattern, cheap-feeling UI smell detection — all apply equally to landing pages, funnels, and marketing sites.
+**The hard rules (1-17) all transfer unchanged.** Premium polish, discriminator audit, genre lock, asset verification, real-component buffet, iteration minimization, layout discipline, z-index discipline, status-pill discipline, operator-dashboard structure (where applicable), toast-confirm pattern, cheap-feeling UI smell detection, atlas-as-first-class-artifact — all apply equally to landing pages, funnels, and marketing sites.
 
 **The reusable code primitives all transfer:** `variant_grid`, `button_row`, `native_scrollable`, `long_label_safe_width`, the React components (FilterBar, Topbar, DetailPanel, Modal, Dropdown, Toast) — built generically enough to drop into any web project.
 
@@ -168,23 +198,21 @@ claude mcp list | grep mobbin
 
 Expected: `mobbin: https://api.mobbin.com/mcp (HTTP) - ✓ Connected`
 
-If `Needs authentication` → type `/mcp` → mobbin → Authenticate (browser OAuth).
+If `Needs authentication` → user types `/mcp` → mobbin → Authenticate (browser OAuth).
 
 If not registered: `claude mcp add mobbin --scope user --transport http https://api.mobbin.com/mcp`, then **restart Claude Code**.
 
-Paid Mobbin plan required for full library access.
-
 ### 2. Mobbin tools surfaced
 
-Confirm via `ToolSearch` query `mobbin` — if no `mcp__mobbin__*` tools appear, the MCP isn't loaded. Stop and ask the user to restart.
+Confirm via `ToolSearch` query `mobbin` — if no `mcp__mobbin__*` tools appear, the MCP isn't loaded. Stop and tell the user to restart.
 
 ## Workflow
 
 ### Phase 1 — Alignment Interview
 
-Use `AskUserQuestion` for clickable preference questions. Pre-fill defaults when prior context exists for a known product.
+Use `AskUserQuestion` for clickable preference questions. Pre-fill from MemPalace when the product is known (Darwin Platform, DomainClaim, etc. — search `wing_darwin`, `wing_exitlayer` first).
 
-**Q0. ARTIFACT TYPE — REQUIRED, ASK FIRST, GATES EVERYTHING ELSE**
+**Q0. ARTIFACT TYPE — REQUIRED, ASK FIRST, GATES EVERYTHING ELSE** *(added 2026-05-14 in response to Michael: "Figuring out what it is being used for whether that is for saas platform, website, specific funnel, etc etc")*
 
 Before any other context-gathering, ask via `AskUserQuestion` what kind of artifact is being designed. The answer drives reference companies suggested, genre vocabulary used, buffet categories, layer specimens emphasized, and even the Phase 5.5 layers shipped.
 
@@ -192,10 +220,10 @@ Acceptable values (single-select):
 
 | Type | Examples | Phase 2.5 genres weighted | Phase 4.75 component buffet emphasis | Phase 5.5 layers emphasis |
 |---|---|---|---|---|
-| `saas-product` | Linear, Notion, internal tools | dashboard, ledger-table, briefing-document, inbox-triage, family-tree, wizard | nav-rail, KPI tile, table row, status pill, command palette | help/chat sidebar, slide-over, modal, dropdown, command-palette, toast |
-| `marketing-site` | Stripe.com, Linear.app, Vercel.com | hero-landing, feature-page, pricing-page, testimonial-wall, blog-post, changelog | hero-CTA, social-proof-row, pricing-tier-card, testimonial-card, FAQ-accordion, comparison-table | sticky-bottom-CTA, exit-intent popup, video lightbox, scroll-progress bar |
-| `conversion-funnel` | Signup flow, paywall, checkout, audit form | funnel-step, email-capture, checkout-step, post-conversion-thank-you, paywall, upsell-overlay | step-indicator, form-field, plan-tier-selector, payment-form, urgency-banner | upsell overlay, trust-badge tooltip, abandoned-cart toast, social-proof live-counter |
-| `mobile-app` | iOS/Android product UI | tab-bar, native-modal, bottom-sheet, pull-to-refresh, gesture-driven view | nav-tab, list-row, card swipeable, modal-from-bottom, action-sheet | bottom-sheet, action-sheet, share-sheet, push-permission prompt |
+| `saas-product` | Darwin Platform, Blue Bullpen, Cortex | dashboard, ledger-table, briefing-document, inbox-triage, family-tree, wizard | nav-rail, KPI tile, table row, status pill, command palette | Brain Chat, slide-over, modal, dropdown, command-palette, toast |
+| `marketing-site` | Stripe.com, Linear.app, Vercel.com, ExitLayer landing | hero-landing, feature-page, pricing-page, testimonial-wall, blog-post, changelog | hero-CTA, social-proof-row, pricing-tier-card, testimonial-card, FAQ-accordion, comparison-table | sticky-bottom-CTA, exit-intent popup, video lightbox, scroll-progress bar |
+| `conversion-funnel` | Signup flow, paywall, checkout, ExitLayer audit form | funnel-step, email-capture, checkout-step, post-conversion-thank-you, paywall, upsell-overlay | step-indicator, form-field, plan-tier-selector, payment-form, urgency-banner | upsell overlay, trust-badge tooltip, abandoned-cart toast, social-proof live-counter |
+| `mobile-app` | iOS/Android product UI, Wishing Well | tab-bar, native-modal, bottom-sheet, pull-to-refresh, gesture-driven view | nav-tab, list-row, card swipeable, modal-from-bottom, action-sheet | bottom-sheet, action-sheet, share-sheet, push-permission prompt |
 | `docs-site` | docs.stripe.com, vercel.com/docs | doc-page, API-reference, code-example, sidebar-nav | TOC sidebar, code block, callout, search results, version selector | search command, copy-code toast, prev/next nav |
 | `hybrid` | Product + marketing in same domain | varies — drives a per-section answer | varies | varies |
 
@@ -206,17 +234,19 @@ Acceptable values (single-select):
 1. **Product summary** — one-sentence what it is + one-sentence who it's for
 2. **Register / mood** — Bloomberg-dense / Linear-minimal / Cal.com-friendly / Notion-spatial / custom (vocabulary varies by artifact type)
 3. **Brand anchors** — color hint, type stance (serif/grotesque/mono), motion appetite (still/subtle/kinetic), info density (sparse/balanced/dense)
-3a. **REFERENCE COMPANIES TO EMULATE — REQUIRED, NOT OPTIONAL** — block proceeding without 3-5 named anchors. Suggested examples vary by artifact type:
+3a. **REFERENCE COMPANIES TO EMULATE — REQUIRED, NOT OPTIONAL** *(updated 2026-05-14, see [[feedback_iteration_minimization]] + [[feedback_premium_saas_feel]])* — block proceeding without 3-5 named anchors. Suggested examples vary by artifact type:
     - `saas-product` → Linear, Vercel, Stripe Atlas, Cursor, Arc, Notion premium, Linear Inbox, Pylon, Height, Raycast
     - `marketing-site` → Stripe.com, Linear.app, Vercel.com, Cal.com, Notion's marketing site, Apple Vision Pro page, Anthropic homepage
     - `conversion-funnel` → Stripe Checkout, Calendly booking flow, Vercel signup, Linear's onboarding, ConvertKit landing, Webflow pricing
     - `mobile-app` → Cash App, Linear mobile, Notion iOS, Things 3, Bear, Cron, Fey
     - `docs-site` → docs.stripe.com, vercel.com/docs, react.dev, Tailwind docs, Anthropic docs
-    Anchoring direction from the start prevents the bland-default round. **DO NOT proceed to Phase 2 without this signal locked.**
+    Anchoring direction from the start prevents the bland-default round. Pre-fill from MemPalace if a prior pick exists for known products. **DO NOT proceed to Phase 2 without this signal locked.**
 4. **Must-have flows** — 3–5 core user journeys
 5. **Anti-references** — what you do NOT want it to look like
 6. **Mobbin scope** — `all` apps or scoped category? Mobile, desktop, or both? (auto-bias by artifact type — funnels skew mobile-friendly, SaaS skews desktop-primary)
 7. **Output location** — default `data/<product-slug>-screen-atlas.html`
+
+For Darwin Platform specifically (cached defaults): artifact type = `saas-product`. **LIGHT operator-grade product register** (Linear-crisp + Vercel-deep + Stripe-polished — NOT dark Bloomberg per DEC-2026-05-13-05 which reversed the earlier dark direction), cream parchment for partner-facing docs (Aspire brief, screen atlas, design-system deck per DEC-2026-05-13-03), desktop primary, anti-refs are chatbot-shells / generic-SaaS-pastel / AI-startup-launch-page / Palantir-grimness. Anchors + canonical reference companies per `wing_darwin`.
 
 ### Phase 2 — Screen Enumeration
 
@@ -228,18 +258,20 @@ Output as markdown checklist. **Get user confirmation BEFORE Phase 3** via `AskU
 
 ### Phase 2.5 — Genre Lock per Surface (HARD GATE)
 
-For EACH approved screen, name its genre from the fixed vocabulary BEFORE Phase 3 dispatches research subagents. Without an explicit genre lock, subagents will fetch references at the default-genre level (dashboard tiles, list rows) which causes the "everything-as-tile-cards" / "everything-as-list" failure modes.
+*(NEW — added 2026-05-14, see [[feedback_genre_lock]])*
+
+For EACH approved screen, name its genre from the fixed vocabulary BEFORE Phase 3 dispatches research subagents. Without an explicit genre lock, subagents will fetch references at the default-genre level (dashboard tiles, list rows) which causes the Org-Pulse-as-tile-cards / agent-org-chart-as-list failure mode.
 
 For each screen, fill in: `screen-id → genre`. Genres: `briefing-document | dashboard | ledger-table | activity-feed | document-archive | inbox-triage | marketplace | family-tree | timeline | canvas | wizard | composition`.
 
 If a screen ambiguously fits two genres, use `AskUserQuestion` to lock the choice. Do NOT default-guess.
 
-Example mapping for an internal-tools product:
-- `home-pulse` → briefing-document
+Example for Darwin Platform:
+- `org-pulse` → briefing-document
 - `decision-archive` → ledger-table
 - `audit-timeline` → timeline
 - `connector-marketplace` → marketplace
-- `team-org-chart` → family-tree
+- `agent-org-chart` → family-tree
 - `directives` → inbox-triage
 - `reports-archive` → document-archive
 - `tenant-setup` → wizard
@@ -258,9 +290,9 @@ For each approved screen, parallel-dispatch subagents (one per surface bucket, m
 
 4. **Per-reference output (TWO blocks):**
 
-   **Block A — screen-pattern analysis** (2–3 sentences specific to this product's version of this screen). Generic praise FORBIDDEN.
+   **Block A — screen-pattern analysis** (existing, 2–3 sentences specific to this product's version of this screen). Generic praise FORBIDDEN.
 
-   **Block B — design-system observations** (structured JSON):
+   **Block B — design-system observations** (NEW, structured JSON):
 
    ```json
    {
@@ -291,20 +323,20 @@ For each approved screen, parallel-dispatch subagents (one per surface bucket, m
 
    These are HEURISTIC estimates from the visible screenshot + subagent's knowledge of the source app. Mark estimates clearly with `_estimate` suffix or "(estimated)" qualifiers. Visual refinement (actual color sampling, exact pixel measurement) happens in **Phase 5 synthesis**, not here — keep this phase fast.
 
-5. **Per-screen recommended-pattern paragraph**: synthesize the references into a concrete design direction for this screen. Name layout, key components, density, motion.
+5. **Per-screen recommended-pattern paragraph** (existing): synthesize the references into a concrete design direction for this screen. Name layout, key components, density, motion.
 
 Run subagents in parallel (one per surface bucket, 4-6 buckets). Each writes to `data/_atlas-work/results-{LETTER}.json`. Heavy base64 stays in subagent contexts; parent only ever reads the slim JSON outputs.
 
 ### Phase 4 — Atlas HTML with Embedded Feedback
 
-Build the atlas as `data/<product-slug>-screen-atlas.html`. **Cream-parchment register** by default (or whatever the alignment specified). Per-screen sections contain:
+Build the atlas as `data/<product-slug>-screen-atlas.html`. **Cream-parchment register** matching the partner-facing brief. Per-screen sections contain:
 
 - Per-screen header + sub-states + recommended pattern
 - Reference grid where each card carries:
-  - Image thumbnail (linked from `local_image_path`)
+  - Image thumbnail (linked from `image_url`)
   - App / flow / analysis (Block A)
   - **Design-system observations panel** (Block B, expandable `<details>`)
-  - **Feedback row**:
+  - **Feedback row** (NEW):
     ```
     [ skip · ok · use this · hero · anti-pattern ]   (radio group, one click)
     note: ___________________________________________ (optional one-line)
@@ -327,7 +359,7 @@ Build the atlas as `data/<product-slug>-screen-atlas.html`. **Cream-parchment re
 - Sticky bottom bar: `[ Export feedback as JSON ]` button → `navigator.clipboard.writeText(json)` → toast confirmation
 - A `[ Reset ]` button (with confirm) clears localStorage
 
-**Accessibility:**
+**Accessibility (per ui-design-system rules):**
 - Every radio has an `<label>` association
 - Every textarea has `<label>` + `aria-describedby` for hints
 - 4.5:1 color contrast minimum for ALL text (test before write)
@@ -353,6 +385,8 @@ When feedback JSON arrives:
 Save the parsed feedback to `data/_atlas-work/feedback.json` for the synthesis stage.
 
 ### Phase 4.75 — Component Buffet (Path B — Real DOM, NOT Cropped JPEGs)
+
+*(NEW — added 2026-05-14, see [[feedback_real_component_buffet]] + [[feedback_buffet_and_html_spec]])*
 
 The buffet is where the user picks per-category component variants (button · input · card · chip · table-row · sidebar-nav · kpi-tile · loading · empty-state · etc.) from candidate sets extracted across the rated references. **All variants MUST render as real HTML/CSS DOM elements, NEVER as cropped screenshots.** Cropping degrades with zoom, framing is imprecise, and the user can't trust a fidelity-blurred image to make a variant-pick.
 
@@ -392,7 +426,7 @@ For each component category (one buffet section per category):
 
 5. **Buffet persistence** — same localStorage pattern as Phase 4 atlas. User submits picks as JSON; synthesis (Phase 5) uses those picks as locked component shapes.
 
-**Path A (Playwright DOM scrape) is REJECTED for this stage.** Reasons: most Mobbin sources are auth-gated or mobile apps where DOM scraping fails; browser-install maintenance tail is real engineering cost; incremental fidelity gain over Path B is small for variant-picking (gestalt-level decisions). Add Path A LATER if Path B reconstruction fails on a specific brand.
+**Path A (Playwright DOM scrape) is REJECTED for this stage.** Reasons documented in [[feedback_real_component_buffet]]: most Mobbin sources are auth-gated or mobile apps where DOM scraping fails; browser-install maintenance tail is real engineering cost; incremental fidelity gain over Path B is small for variant-picking (gestalt-level decisions). Add Path A LATER if Path B reconstruction fails on a specific brand.
 
 **Verification before next phase:**
 - All variant cards render visible DOM (asset-verification gate per Hard Rule 8)
@@ -410,7 +444,7 @@ Read inputs:
 - `data/_atlas-work/results-A..F.json` (with observation blocks)
 - `data/_atlas-work/feedback.json`
 
-**Optional visual-refinement pass:** for the references rated `hero` or `use this`, optionally fetch the image_url and do an actual color-sampling pass to refine `dominant_palette_estimate` from approximations to exact hex codes. Skip this pass for `skip`/`anti-pattern` rated refs.
+**Optional visual-refinement pass (Option B in v2 spec):** for the references rated `hero` or `use this`, optionally fetch the image_url and do an actual color-sampling pass to refine `dominant_palette_estimate` from approximations to exact hex codes. Skip this pass for `skip`/`anti-pattern` rated refs.
 
 Aggregate observations weighted by feedback rating:
 - `hero` refs contribute weight 3
@@ -434,25 +468,27 @@ Synthesize a locked design-system deck at `data/<product-slug>-design-system.htm
    - `tokens.json` (framework-agnostic)
    - `tailwind.config.ts` (theme extension snippet)
    - `theme.css` (CSS variables for runtime)
-10. **Mock Data Schemas** — TypeScript types per entity the wireframes reference + a sample `mockData.ts` exemplar
+10. **Mock Data Schemas** — TypeScript types per entity the wireframes reference (Decision, Connector, Brain Query Result, Cohort Benchmark, etc.) + a sample `mockData.ts` exemplar
 11. **Interaction & Routing Spec** — route map, keyboard shortcuts, focus management rules
-12. **Accessibility Checklist** — WCAG-baked rules per component
+12. **Accessibility Checklist** — WCAG-baked rules per component (per `ui-design-system` skill)
 13. **Content Spec** — copy register, label conventions, mono identifier naming rule
 
 **Hard contrast guard before write:**
 
-For every SVG specimen on dark backgrounds, walk every `<text>` element and assert it has an EXPLICIT `fill` attribute drawn from text tokens (NOT inheriting from global `svg text { fill: var(--ink) }`). If any text element lacks an explicit fill, FAIL the build with a clear error pointing at the offending element.
+For every SVG specimen on dark backgrounds, walk every `<text>` element and assert it has an EXPLICIT `fill` attribute drawn from `--p-text-*` tokens (NOT inheriting from global `svg text { fill: var(--ink) }`). If any text element lacks an explicit fill, FAIL the build with a clear error pointing at the offending element.
 
 **Output:** `data/<product-slug>-design-system.html` (Phase 5 ships hero/main page wireframes only — Phase 5.5 below adds the layered interactions on top before audit).
 
 ### Phase 5.5 — Layers & Interactions (REQUIRED before audit + handoff)
+
+*(NEW — added 2026-05-14, formalized as a hard phase. Filed as [[feedback_layers_in_design_system]].)*
 
 Phase 5 ships full-page wireframes. Real products also contain **layered interactions** that sit ON TOP of pages — these are equally load-bearing and equally need to be designed before code, NOT improvised in scaffold. Layer specimens are appended to the design-system deck as a new "Layers & Interactions" section.
 
 **Required layer specimens (8 minimum, more if the product needs them):**
 
 1. **Help/Chat Sidebar** — universal "ask about this page" panel that slides in from the right. Spec includes: width, context strip showing what underlies it, conversation thread example, citation chips inline, input affordance, dismiss methods.
-2. **Slide-over panel pattern** — generic right-side panel (40-60% viewport width) that hosts secondary surfaces (detail view, inspector, settings drill-down). Spec includes: header treatment, scrim opacity, motion descriptor.
+2. **Slide-over panel pattern** — generic right-side panel (40-60% viewport width) that hosts secondary surfaces (decision detail, agent inspector, settings drill-down). Spec includes: header treatment, scrim opacity, motion descriptor.
 3. **Modal dialog (3 variants)** — standard / destructive / upgrade. Each variant gets its own specimen.
 4. **Dropdown menu / filter popover** — anchored below trigger button. Spec includes: search input if applicable, checklist with counts, apply/clear actions.
 5. **Command palette (Cmd+K)** — centered modal with global search + grouped results. Spec includes: keyboard shortcuts on results, group structure (Recent · Entities · Actions).
@@ -466,7 +502,7 @@ Phase 5 ships full-page wireframes. Real products also contain **layered interac
 - **Motion descriptor** — enter timing + exit timing + easing function (e.g., `enter: slide-from-right 220ms cubic-bezier(.2,0,0,1) · exit: 160ms ease-in`)
 - **Dismiss methods** — Esc / scrim click / explicit close button / auto
 - **Focus management** — what receives focus on open, what receives focus on close
-- **Z-index assignment** — from the fixed z-index scale (dropdown 50 · sticky 100 · fixed 200 · modalBackdrop 300 · modal 400 · popover 500 · tooltip 600 · toast 700)
+- **Z-index assignment** — from the fixed z-index scale (per `ui-design-system` skill: dropdown 50 · sticky 100 · fixed 200 · modalBackdrop 300 · modal 400 · popover 500 · tooltip 600 · toast 700)
 - **Keyboard nav notes** — Tab order, arrow keys for menus, Enter/Esc behavior
 
 **Motion vocabulary section** also goes in this phase — a small token table defining reusable motion primitives:
@@ -475,11 +511,13 @@ Phase 5 ships full-page wireframes. Real products also contain **layered interac
 - `motion-exit-fast` — 120ms `ease-in` (dismiss)
 - `motion-press` — 80ms `ease-in` (button press feedback)
 
-**Hard gate:** Phase 5.5 cannot be skipped. Going directly from full-page wireframes (Phase 5) to scaffold (Phase 6) forces engineering to invent layer treatments in code, which produces inconsistent overlays + animations + dismiss behavior across the app.
+**Hard gate:** Phase 5.5 cannot be skipped. Going directly from full-page wireframes (Phase 5) to scaffold (Phase 6) forces engineering to invent layer treatments in code, which produces inconsistent overlays + animations + dismiss behavior across the app. Same root cause as v3 vibe-coded slop, just in motion form.
 
 **Output:** Append a new section to `data/<product-slug>-design-system.html` titled "Layers & Interactions" with the 8+ layer specimens + motion vocabulary table.
 
 ### Phase 5.75 — Pre-Ship Audit Gates (MANDATORY)
+
+*(NEW — added 2026-05-14, consolidates Hard Rules 6, 8, and 10)*
 
 Before declaring the design-system deck done, run these three gates IN ORDER. Each must pass before the deck is shown to the user.
 
@@ -519,7 +557,7 @@ open data/<product>-design-system.html
 for f in data/wireframes/*.html; do open "$f"; done
 ```
 
-Investigate every non-200 URL. For Simple Icons specifically: Slack, Salesforce, Gong are trademark-removed and must use inline SVG (Slack) or brand-color lettermark (Salesforce, Gong, Fireflies) — those CDN endpoints 404.
+Investigate every non-200 URL. For Simple Icons specifically, see [[reference_simple_icons_trademark_removed]] — Slack, Salesforce, Gong are TRADEMARK-REMOVED and must use inline SVG (Slack) or brand-color lettermark (Salesforce, Gong, Fireflies).
 
 **Gate B.5 — Multi-Width Layout Check** (per Hard Rule 11):
 - [ ] Open every wireframe + layer specimen at native target width (1440 typically) — looks correct
@@ -527,41 +565,42 @@ Investigate every non-200 URL. For Simple Icons specifically: Slack, Salesforce,
 - [ ] No text wrapping mid-phrase due to compression
 - [ ] No buttons colliding or clipping
 - [ ] No 3+ column variant grids using `1fr` (must be `repeat(N, MINPX)`)
-- [ ] Modal action buttons centered, not right-aligned
+- [ ] Modal action buttons centered, not right-aligned (per Darwin convention)
 - [ ] If ANY surface fails at narrow width, fix the container to scroll — NEVER shrink the content
 
 **Gate C — Pre-Ship Self-Critical Pass** (per Hard Rule 10):
-Re-read the deck + each wireframe as a critical reviewer. Specifically scan for:
+Re-read the deck + each wireframe AS IF YOU WERE MICHAEL. Specifically scan for:
 - Polish trickle-down failures (any primitive at default quality)
 - Wrong genre (tile-cards where a briefing-document was wanted, list where a tree was wanted)
-- Generic placeholder content / lorem-style copy where specific realistic copy is possible
+- Generic placeholder content / lorem-style copy where specific Darwin-realistic copy is possible
 - Bland palette / muted register that doesn't match the reference companies named in Phase 1
 - Cropped JPEG variants in the buffet section (should be real DOM per Phase 4.75)
-- Anything that would make a critical reviewer say "this still doesn't feel premium"
+- Anything that would make Michael say "this still doesn't feel premium"
 
-If you would correct it as a reviewer, correct it BEFORE showing. The iteration-minimization KPI demands this pass.
+If you would correct it as Michael, correct it BEFORE showing him. The iteration-minimization KPI demands this pass.
 
 **Output:** `data/<product-slug>-design-system.html` — only AFTER all three gates pass.
 
 ### Phase 6 — Handoff (Hand to Sister Skill)
 
-After Phase 5.75 passes, output:
+After Phase 5, output:
 1. Path to atlas HTML
 2. Path to feedback JSON
 3. Path to design-system deck
-4. Suggested next: a sister `/scaffold <product>` skill to turn the locked design-system deck into a working clickable+animated localhost Next.js frontend with mock data
+4. Suggested next: `/scaffold <product>` to turn the locked design-system deck into a working clickable+animated localhost Next.js frontend with mock data
+5. Save the alignment + feedback summary to MemPalace at `wing_<product-wing>/strategic_references`
 
-A sister scaffold skill (out of scope for this repo) would:
-- Read the locked design-system HTML
-- Generate the Next.js project (package.json, tailwind.config.ts, theme.css, layout shell, route stubs, components from the JSX snippets, mock data from the schemas)
-- Run `npm install`
-- Boot `npm run dev` with an output monitor attached
-- Smoke-test each route (curl + grep rendered HTML against expected wireframe markers)
-- Run a contrast pass on each rendered page
-- Iterate fixes until green
-- Hand back a verified localhost URL
+The scaffold skill (`skills/scaffold/SKILL.md`) is a SISTER skill that:
+- Reads the locked design-system HTML
+- Generates the Next.js project (package.json, tailwind.config.ts, theme.css, layout shell, route stubs, components from the JSX snippets, mock data from the schemas)
+- Runs `npm install`
+- Boots `npm run dev` with Monitor attached (per `feedback_localhost_monitor.md`)
+- Smoke-tests each route (curl + grep rendered HTML against expected wireframe markers)
+- Runs a contrast pass on each rendered page
+- Iterates fixes until green
+- Hands back a verified localhost URL
 
-`/scaffold` is invoked separately AFTER the design-system deck is reviewed.
+`/scaffold` is invoked separately AFTER Michael reviews the design-system deck.
 
 ## Common Failure Modes
 
@@ -574,4 +613,15 @@ A sister scaffold skill (out of scope for this repo) would:
 
 ## Output Quality Bar
 
-A finished atlas should let the user triage in 15-30 minutes (rate refs, write a few steers, export JSON). The synthesis after feedback should produce a design-system deck rich enough that a sister scaffold skill can generate a working Next.js project from it WITHOUT requiring further design decisions. Every component spec, every token, every wireframe state must be unambiguous code-input-quality.
+A finished atlas should let the user triage in 15-30 minutes (rate refs, write a few steers, export JSON). The synthesis after feedback should produce a design-system deck rich enough that the sister `/scaffold` skill can generate a working Next.js project from it WITHOUT requiring further design decisions. Every component spec, every token, every wireframe state must be unambiguous code-input-quality.
+
+## Reference Stack for Darwin Platform Specifically
+
+When target is Darwin Platform:
+- Cream-parchment document register for partner-facing artifacts (matches `~/Downloads/darwin-aspire-2026-05-13.html` and the brief) — per DEC-2026-05-13-03
+- **LIGHT operator-grade product register** (Linear/Vercel/Stripe-polished — NOT dark Bloomberg) — per DEC-2026-05-13-05 which REVERSED the earlier dark direction
+- Locked palette tokens (from prior v4 build): zinc neutrals + orange-600 accent + indigo-500 secondary for focus rings — see `data/_atlas-work/build_design_system_v4.py` for exact hex values
+- Locked typography: Geist + Geist Mono via Google Fonts CDN
+- Stack target for `/scaffold`: Next 16 + React 19 + Tailwind v4 + shadcn/ui retokenized + TanStack Table + recharts + lucide-react + Vercel AI SDK
+- Connector logos: Simple Icons CDN (`cdn.simpleicons.org/<slug>`) — but Slack/Salesforce/Gong are TRADEMARK-REMOVED and use inline SVG (Slack) / brand-color lettermark (Salesforce, Gong, Fireflies). See [[reference_simple_icons_trademark_removed]].
+- File the atlas + design-system + scaffold paths to MemPalace `wing_darwin/strategic_references`
