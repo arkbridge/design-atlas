@@ -1,4 +1,4 @@
-# mobbin-screen-atlas
+# design-atlas
 
 > Per-screen design research for SaaS, marketing sites, funnels, and mobile apps — powered by [Mobbin's MCP](https://docs.mobbin.com/mcp). A Claude Code skill.
 
