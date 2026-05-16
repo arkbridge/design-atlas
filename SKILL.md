@@ -312,6 +312,83 @@ These rules emerged from end-to-end runs. Any future run that violates one of th
 
     **Why this rule exists:** Same incident as Rule 19. Multiple "Gate X: PASS" lines in the synthesis report; multiple real violations visible in the rendered output. The verification path was the gap, not the rules themselves.
 
+    **Sub-rule 21.a — Parent verification is TWO passes, not one.** Reading the audit JSON is necessary but NOT sufficient. An agent can write a technically-true JSON that hides a functional failure. Caught example: an agent's `polish-audit.json` declared `dual_mode: true` for every component. Technically true — the deck CSS included a `[data-mode="dark"]` token block with full overrides. Functionally false — the SVG specimens had ~90 hardcoded `fill="#FFFFFF"` / `fill="#0B1220"` attributes that ignored CSS variable swaps. Toggling dark mode flipped the deck chrome but left every SVG stuck in light mode. User opened the deck, saw the failure immediately.
+
+    Parent verification requires TWO passes:
+
+    - **Pass 1 — Read the audit JSON.** Confirm `all_pass: true`. Sanity-check the component list matches the spec. If `all_pass: false` → REJECT immediately.
+    - **Pass 2 — Re-derive each claim against the rendered HTML.** For each Rule 20 check (a)-(h) the agent claimed PASS on, grep the HTML to confirm the underlying claim. The agent's JSON is only one signal; the HTML is the other.
+
+    **Per-check parent re-derive heuristics:**
+
+    | Rule 20 check | Parent grep heuristic |
+    |---|---|
+    | (a) Gradient anchor | `grep -cE 'linear-gradient\|radial-gradient\|@keyframes [a-z-]*gradient'` — must be ≥1 |
+    | (b) Corner radius matches locked | `grep -cE "border-radius:\s*${RADIUS}px"` where `${RADIUS}` is `brand_decisions.corner_radius`. Count must equal/exceed `len(components)` |
+    | (c) Layered shadow | `grep -cE 'box-shadow:[^;]+,[^;]+;'` — must be ≥1 per elevated surface |
+    | (d) States described | `grep -cE ':hover\|:active\|:disabled\|:focus-visible'` — must be ≥3 per interactive component class |
+    | (e) Motion descriptor | `grep -cE '@keyframes\|transition:\s*(transform\|opacity)'` — must be ≥1 |
+    | (f) Real content (no Lorem) | `grep -ciE 'lorem\|ipsum\|dolor sit amet\|placeholder text\|component title'` — must be 0 |
+    | (g) Dual mode | both `[data-mode="dark"]` block present AND no orphan hardcoded SVG fills lacking dark-mode attribute overrides (`[data-mode="dark"] svg [fill="..."]` selector count must cover every distinct hardcoded fill found in SVG specimens) |
+    | (h) 44px touch target | `grep -cE 'min-height:\s*4[4-9]px\|min-height:\s*[5-9][0-9]px'` on interactive component classes — must be ≥1 per interactive component |
+
+    If Pass 2 finds a violation Pass 1 missed, the deck FAILS and the agent gets re-dispatched with the specific HTML-grep evidence as the prompt to fix.
+
+    **This adds ~30 seconds of programmatic HTML grep to verification. Cheap insurance against agent self-deception.**
+
+22. **Text-alignment and container-padding audit — verified at the rendered output, never declared.**
+
+    Text overflow (Rule 11.h) is one failure mode. Text *visual position inside its container* is a different one: text rendered awkwardly off-center inside a box that visually centers it, text with no consistent inset from container edges, text vertically misaligned within a vertically-anchored container. This is the most-flagged polish failure across runs — users see "text spilling," "container padding wrong," "awkwardly positioned" before they see anything else.
+
+    **Required for every text element inside a container (SVG `<text>` with a sibling `<rect>` parent visual, OR HTML element with an explicit background / border):**
+
+    a. **SVG: every `<text>` element MUST have an explicit `text-anchor` attribute** — `start`, `middle`, or `end`. No default. The choice must match the visual intent of the container (centered card → `middle`; left-aligned list row label → `start`; right-aligned numeric → `end`).
+
+    b. **SVG: text x coordinate respects container inset.** If text is inside a rect at `x=X, width=W`, the text's effective position must respect a minimum 12px inset from both edges:
+       - `text-anchor="start"`: text `x` ≥ `rect.x + 12`
+       - `text-anchor="end"`: text `x` ≤ `rect.x + rect.width - 12`
+       - `text-anchor="middle"`: text `x` ≈ `rect.x + rect.width / 2` (within ±4px)
+
+    c. **SVG: text y coordinate respects vertical alignment intent.** For a single-line text inside a rect with height `H`, vertical-centered text should sit at `text.y ≈ rect.y + H/2 + font-size/3` (the 1/3 offset compensates for SVG's baseline-anchored y).
+
+    d. **HTML: every text container (`<button>`, `<.card>`, `<.chip>`, `<.label>` with explicit styling) MUST have either an explicit `text-align` declaration OR flex centering (`display: flex; align-items: center; justify-content: ...`).** No defaults from inherited browser styles.
+
+    e. **HTML: explicit padding on every styled container.** A container that has a `background` or `border` declaration MUST also have explicit `padding` — never inherited from `*` reset or browser default. Padding values match the locked `brand_decisions.spacing` register (typically 8/12/16/20/24/32px from a 4-base scale).
+
+    **Programmatic audit (parent-run, Pass 2 of Rule 21.a):**
+
+    ```python
+    import re
+    html = open("data/<product>-design-system.html").read()
+    viols = []
+
+    # (a) SVG <text> missing explicit text-anchor
+    for m in re.finditer(r'<text\b((?!text-anchor=)[^>])*>', html):
+        viols.append({"type": "missing_text_anchor", "tag": m.group(0)[:120]})
+
+    # (b/c) SVG text-inside-rect positioning (heuristic — find rect+text pairs by proximity in same svg)
+    # See Rule 11.h script for the per-SVG iteration pattern; extend to check text x/y vs nearest rect bounds.
+
+    # (d) HTML text container missing text-align or flex centering
+    # For each known styled-container class (.btn, .card, .chip, .label, .tab, .row),
+    # require either `text-align:` OR `display: flex` (with `align-items` or `justify-content`)
+    for cls in [".btn", ".card", ".chip", ".label", ".tab", ".row", ".pill"]:
+        # Find the class definition block
+        for block in re.finditer(rf'{re.escape(cls)}\s*\{{([^}}]+)\}}', html):
+            body = block.group(1)
+            if "text-align:" not in body and "display: flex" not in body and "display:flex" not in body:
+                viols.append({"type": "no_alignment_declaration", "class": cls})
+            if ("background:" in body or "background-color:" in body or "border:" in body) and "padding:" not in body:
+                viols.append({"type": "styled_container_no_padding", "class": cls})
+
+    audit = {"schema": "text-alignment-audit-v1", "all_pass": len(viols) == 0, "violations": viols}
+    json.dump(audit, open("data/_atlas-work/<product>/text-alignment-audit.json", "w"), indent=2)
+    ```
+
+    **Hard gate:** Phase 5.75 now has FOUR audits (Gate A polish + Gate B asset-verification + Gate C text-overflow + Gate D text-alignment). All four must produce `all_pass: true` JSON files. Parent re-derives all four against the HTML per Rule 21.a.
+
+    **Why this rule exists:** Across multiple atlas / design-system synthesis runs spanning multiple verticals, users have repeatedly flagged "text spilling out of boxes," "text awkwardly positioned," "container padding wrong" as the FIRST polish failure they see. Rule 11.h covers the overflow case (text wider than container). This rule covers the alignment + padding cases that Rule 11.h misses. Combined with Rule 21.a's parent re-derive, this should make text-positioning failures impossible to ship without the parent catching them.
+
 ---
 
 ## Vertical Extensibility — beyond SaaS products
