@@ -250,25 +250,25 @@ These rules emerged from end-to-end runs. Any future run that violates one of th
 
 ## Vertical Extensibility — beyond SaaS products
 
-**⚠️ Current status (2026-05-15):** This skill is **proven for SaaS product UI/UX** (operator dashboards, B2B app screens, settings, modals, inbox-triage, ledger surfaces). Use it confidently for that vertical.
+**Current status (2026-05-16):** This skill is **proven for SaaS product UI/UX AND mobile apps**. Use freely on both. Other verticals still need calibration work — see per-vertical detail below.
 
-**For marketing websites, conversion funnels, mobile apps, and docs sites:** the workflow still applies but the *prompt engineering* for synthesis (Phase 5) needs more work before the skill produces production-quality output. Real-world surfaces:
+**For marketing websites, conversion funnels, and docs sites:** the workflow still applies but the *prompt engineering* for synthesis (Phase 5) needs more work before the skill produces production-quality output. Real-world surfaces:
 
 - **`saas-product` (PROVEN):** Use freely.
+- **`mobile-app` (PROVEN):** Use freely. Calibrated 2026-05-16 on a 28-screen iOS app run (162 refs across 8 surfaces: onboarding, practice home, active session, post-session, scenarios+skill-tree, venue-map, profile, settings+paywall). Atlas register, ref curation, anti-ref enforcement, and per-screen recommended-pattern paragraphs all held up. 19 hero / 18 lift / 79 ok / 21 skip / 25 anti — strong signal density. Android untested but expected to work the same way via Mobbin's mobile platform filter. The mobile-app vertical specifically benefits from Mobbin's catalog being heavily mobile-weighted; reference quality on mobile screens is consistently higher than on web.
 - **`marketing-site` (EXPERIMENTAL — known failure modes):** Phase 5 wireframes drift toward over-detailed schematic vocabulary (dimension callouts, construction marks, blueprint annotations) when what marketing surfaces actually need is restraint + atmospheric type + commissioned hero imagery. The skill can produce a directional design-system deck, but the wireframes themselves should be treated as layout-blueprints to commission a designer from, NOT as a finished design. If running on a marketing site, expect 2-3 manual iteration cycles on the wireframes before they read as a marketing surface rather than a technical drawing. Best results when a finished hero asset (banner, photograph, brand illustration) already exists — embed it directly per [[feedback-use-real-assets-when-they-exist]].
 - **`conversion-funnel` (UNTESTED):** Spec exists but no production run validated.
-- **`mobile-app` (UNTESTED):** Mobbin source mix supports it (mobile platform filter) but no end-to-end run validated.
-- **`docs-site` (UNTESTED):** Same — workflow supports it but unproven.
+- **`docs-site` (UNTESTED):** Workflow supports it but unproven.
 
 The hard rules (1-18) all transfer unchanged across these verticals. The gap is at the *synthesis-prompt* level — the Phase 5 subagent needs vertical-specific guidance about which design moves to lift and which to suppress, and that guidance is currently calibrated for product-UI synthesis only.
 
 **Recommended approach for non-SaaS verticals (until prompt engineering catches up):** run Phase 1-4.5 (atlas + feedback) to lock the visual register and the reference companies, then HAND OFF to a designer rather than running Phase 5 synthesis. The atlas + feedback JSON together are a usable design brief; the auto-synthesized deck for these verticals is currently more "structured commission brief" than "ready design."
 
 This skill's workflow + rules apply DIRECTLY to:
-- **SaaS product UI** (default framing — internal tools, B2B apps, operator dashboards)
+- **SaaS product UI** (default framing — internal tools, B2B apps, operator dashboards) — *PROVEN*
+- **Mobile apps** (iOS / Android product surfaces) — *PROVEN*
 - **Marketing websites + landing pages** (Stripe.com, Linear.app, Vercel.com style) — *EXPERIMENTAL, see above*
 - **Conversion funnels** (signup flow, paywall, checkout, onboarding) — *UNTESTED*
-- **Mobile apps** (iOS / Android product surfaces) — *UNTESTED*
 - **Documentation sites** (docs.stripe.com, vercel.com/docs) — *UNTESTED*
 
 **How to adapt the workflow for non-product verticals:**

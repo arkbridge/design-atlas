@@ -5,8 +5,9 @@ Per-screen design research using Mobbin's MCP. One alignment interview, exhausti
 ## Status by vertical
 
 - ✅ **SaaS product UI/UX** — *proven.* Use freely.
+- ✅ **Mobile apps (iOS)** — *proven.* Use freely. Calibrated on a 28-screen iOS app run (162 refs across 8 surfaces): atlas register, ref curation, anti-ref enforcement, and per-screen recommended-pattern paragraphs all held up. Android untested but expected to work the same way via Mobbin's platform filter.
 - ⚠️ **Marketing websites / single-page manifestos** — *experimental.* Phase 5 synthesis currently drifts toward over-detailed schematic vocabulary on marketing surfaces. Run Phase 1-4.5 (atlas + feedback) and hand off to a designer; do not rely on auto-synthesized decks for this vertical yet.
-- 🔬 **Conversion funnels, mobile apps, docs sites** — *untested.* Workflow supports them but no production run validated.
+- 🔬 **Conversion funnels, docs sites** — *untested.* Workflow supports them but no production run validated.
 
 See `SKILL.md` § Vertical Extensibility for the per-vertical status detail and recommended workflow.
 
