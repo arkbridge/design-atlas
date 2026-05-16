@@ -541,6 +541,67 @@ For every SVG specimen on dark backgrounds, walk every `<text>` element and asse
 
 **Output:** `data/<product-slug>-design-system.html` (Phase 5 ships hero/main page wireframes only — Phase 5.5 below adds the layered interactions on top before audit).
 
+### Phase 5.25 — Asset Generation (OPTIONAL — opt-in per project)
+
+Phase 5 wireframes carry chalk-outlined dashed placeholders where figurative/illustrated content belongs (per Hard Rule 8.a and the placeholder pattern documented under Hard Rule 6). Each placeholder is a structured commission brief — a figure ID, dimensions, stage metric, surrounding wireframe context.
+
+When `alignment.json.generate_assets: true` and a generation provider is configured, Phase 5.25 consumes those briefs and produces real PNG assets, then rewrites the wireframes to use the generated images in place of the chalk placeholders.
+
+**Default provider:** Gemini Image (`gemini-2.5-flash-image`, also known as Nano Banana). Reference-image conditioning is supported — the alignment's `palette_anchor.from_image` (the user's existing brand reference, banner, or moodboard image) is passed as a `inline_data` part alongside the text prompt so the style transfers.
+
+**Alternate providers (optional):** Gemini 3 Pro Image, Gemini 3.1 Flash Image, Imagen 4 (`predict` endpoint, different schema), Kling for video-as-asset.
+
+**Workflow:**
+
+1. **Scan deck for placeholders.** Phase 5 wireframes MUST emit chalk placeholders with structured data attributes (`data-fig-id`, `data-w`, `data-h`, `data-stage-label`, `data-stage-metric`). The skill enforces this so Phase 5.25 has a stable scan target.
+
+2. **Construct prompts.** For each placeholder, build a prompt with three sections:
+   - **Style preamble** — locked from alignment.json (`register`, `palette_anchor`, deck's voice). One reusable preamble per project.
+   - **Subject** — what the figure IS (verbatim from the placeholder's commission brief)
+   - **Composition rule** — isolated single subject, generous negative space, no other elements (this defeats the strong compositional anchor that reference-image conditioning otherwise imposes).
+
+3. **Call provider.** Default Gemini Image endpoint:
+   ```
+   POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key={GEMINI_API_KEY}
+   body: {
+     "contents":[{"parts":[
+       {"text": "{prompt}"},
+       {"inline_data":{"mime_type":"image/png","data":"{base64 of reference}"}}
+     ]}],
+     "generationConfig":{"responseModalities":["IMAGE"]}
+   }
+   ```
+   Response: image bytes are returned base64-encoded inside `candidates[0].content.parts[*].inline_data.data`.
+
+4. **Save outputs.** `data/<product-slug>/assets/figures/<fig-id>.png` (slugified id). Bytes typically 800KB–1.5MB at default Gemini Image fidelity.
+
+5. **Rewrite wireframes.** Each chalk placeholder becomes:
+   ```html
+   <image href="assets/figures/<fig-id>.png"
+          x="..." y="..." width="..." height="..."
+          preserveAspectRatio="xMidYMid meet"/>
+   ```
+   The mono FIG. ID + dimension labels can be retained (they're useful as legible structural marks) OR dropped if the generated image carries its own caption.
+
+6. **Audit.** Phase 5.75 (Pre-Ship Audit Gates) runs over the regenerated deck — Gate A (discriminator audit), Gate B (asset verification — vision-read each generated image, assert it matches genre and isn't a 404 / blank / hallucination), Gate C (self-critical pass).
+
+**Fallback behavior.** If a generation fails (provider error, content-policy block, timeout, dimension mismatch), the chalk placeholder is preserved. Log to `data/<product-slug>/assets/figures/_failures.log` and continue — generation is opt-in enrichment, never a blocking gate.
+
+**Reference implementation:** `integrations/gemini-image/gen.py` — stdlib-only Python module (uses `urllib.request`, no httpx/requests dependency). Provides `generate_image(prompt, output_path, reference_image_path=None, model="gemini-2.5-flash-image")`. CLI runner included.
+
+**API-key resolution:** reads `GEMINI_API_KEY` from environment, falling back to known `.env` locations. Never inline the key into prompts or save it in deck output.
+
+**Hard constraints:**
+- Generated images are LARGE (~1.5MB each). Do NOT base64-inline into the deck HTML — the self-contained-deck rule (Hard Rule 3 and others) yields here to keep deck file size manageable. Use relative `<image href="assets/...">` references with the assets folder shipped alongside the deck.
+- Reference-image conditioning anchors compositionally to the reference. To get isolated single-subject outputs, the prompt MUST include explicit composition rules ("ISOLATED SINGLE FIGURE, no other figures present, generous negative space").
+- The deck's Self-contained-Asset audit (Gate B) must vision-read each generated image, NOT just curl-200 the path. Hallucinated / off-genre outputs pass HTTP checks but fail visual audit.
+
+**Skill-side opt-in:**
+- Phase 1 Q3a captures whether the user has a reference image
+- If reference exists AND user wants generation → Phase 5.25 runs after Phase 5
+- If reference exists AND user does NOT want generation → Phase 5 emits placeholders only; user commissions manually
+- If no reference → recommend deferring generation until brand register is locked, OR generate without conditioning (style-only prompts)
+
 ### Phase 5.5 — Layers & Interactions (REQUIRED before audit + handoff)
 
 Phase 5 ships full-page wireframes. Real products also contain **layered interactions** that sit ON TOP of pages — these are equally load-bearing and equally need to be designed before code, NOT improvised in scaffold. Layer specimens are appended to the design-system deck as a new "Layers & Interactions" section.
