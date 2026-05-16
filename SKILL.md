@@ -133,6 +133,46 @@ These rules emerged from end-to-end runs. Any future run that violates one of th
     e. **Longest-content measurement at build time** — use a `long_label_safe_width(labels, ...)` helper to compute container min-width from longest realistic label
     f. **`overflow: hidden` is opt-in** — default is `visible` or `auto`; never silently clip content
     g. **Multi-width pre-ship check** — open every UI at native width AND at deck's content-column width; if anything looks crushed at narrower width, fix the container (scroll) not the content (don't shrink)
+
+    h. **Text-overflow audit (MANDATORY before declaring any surface done).** Every text element MUST be checked against its container's bounds. Three failure modes the prior rules did not catch on real runs:
+
+       - **Text spilling out of bounded boxes.** Long captions ("M-04 · HOMO SAPIENS · ~172 CM · NOW") exceeding their parent rect's width — visible as text continuing past the rect's right edge. Fix: measure text width at build time (`len(text) * font-size * 0.55` is a decent SVG estimate for proportional fonts; for monospace use `len(text) * font-size * 0.6`) and either shrink the font, shorten the text, or widen the container.
+
+       - **Overlapping text boxes / labels.** Multiple text elements positioned close enough that their bounding boxes intersect. Common when dimension callouts, annotation pointers, and section labels all crowd the same region. Fix: compute every text element's bounding box and assert pairwise non-intersection (with a minimum gap, e.g. 8px).
+
+       - **Text clipped by parent SVG viewBox.** Text positioned at coordinates that fall outside the SVG's viewBox dimensions. Fix: assert every text element's `x + estimated_width` is within `viewBox.width` and `y` is within `viewBox.height` minus a safe margin.
+
+       **Programmatic audit script** (run as part of Phase 5.75 Gate A):
+       ```python
+       import re, sys
+       def audit(html):
+           viols = []
+           # Per SVG, gather <text> elements and their parents' bounds
+           for svg_match in re.finditer(r'<svg[^>]*viewBox="0 0 (\d+) (\d+)"[^>]*>(.*?)</svg>', html, re.DOTALL):
+               vw, vh = int(svg_match.group(1)), int(svg_match.group(2))
+               body = svg_match.group(3)
+               texts = []
+               for t in re.finditer(r'<text x="([0-9.]+)" y="([0-9.]+)"[^>]*font-size="([0-9.]+)"[^>]*>([^<]*)</text>', body):
+                   x, y, fs, txt = float(t.group(1)), float(t.group(2)), float(t.group(3)), t.group(4)
+                   est_w = len(txt) * fs * 0.55
+                   est_h = fs * 1.2
+                   if x + est_w > vw:
+                       viols.append(f"text overflows right edge: '{txt[:30]}' x={x} est_w={est_w:.0f} vw={vw}")
+                   if y > vh:
+                       viols.append(f"text below viewBox: '{txt[:30]}' y={y} vh={vh}")
+                   texts.append((x, y, est_w, est_h, txt))
+               # Pairwise overlap check
+               for i, (x1, y1, w1, h1, t1) in enumerate(texts):
+                   for x2, y2, w2, h2, t2 in texts[i+1:]:
+                       if abs((x1 + w1/2) - (x2 + w2/2)) < (w1 + w2)/2 + 8 and \
+                          abs((y1 - h1/2) - (y2 - h2/2)) < (h1 + h2)/2 + 4:
+                           viols.append(f"text overlap: '{t1[:20]}' vs '{t2[:20]}'")
+           return viols
+       ```
+
+       This script is heuristic (SVG text width estimation is imperfect) but catches the most common violations. Run on every Phase 5 deck output before declaring done. **If any violation surfaces, FIX BEFORE proceeding to feedback gate.**
+
+       **Why this rule exists:** A real marketing-site deck run shipped Phase 5 wireframes with multiple text-overflow + text-overlap violations — long mono dimension callouts spilling past their callout-box edges, anatomical pointer labels overlapping figure captions, scroll-hint text positioned beyond the viewBox. The user flagged on review: *"there are also formatting issues on the website: text box overlaps, text spilling out of boxes, etc that shouldnt be happening if we were to be applying our foundational design rules in general that should be present in everything the skill generates."* The existing layout-discipline + discriminator-audit rules were SUPPOSED to catch this and did not — the gap was the absence of a programmatic text-overflow check, now formalized as sub-rule 11.h.
     
     Plus modal-button alignment: action buttons in modals render CENTERED (`justify-content: center`), not right-aligned.
     
@@ -210,12 +250,26 @@ These rules emerged from end-to-end runs. Any future run that violates one of th
 
 ## Vertical Extensibility — beyond SaaS products
 
+**⚠️ Current status (2026-05-15):** This skill is **proven for SaaS product UI/UX** (operator dashboards, B2B app screens, settings, modals, inbox-triage, ledger surfaces). Use it confidently for that vertical.
+
+**For marketing websites, conversion funnels, mobile apps, and docs sites:** the workflow still applies but the *prompt engineering* for synthesis (Phase 5) needs more work before the skill produces production-quality output. Real-world surfaces:
+
+- **`saas-product` (PROVEN):** Use freely.
+- **`marketing-site` (EXPERIMENTAL — known failure modes):** Phase 5 wireframes drift toward over-detailed schematic vocabulary (dimension callouts, construction marks, blueprint annotations) when what marketing surfaces actually need is restraint + atmospheric type + commissioned hero imagery. The skill can produce a directional design-system deck, but the wireframes themselves should be treated as layout-blueprints to commission a designer from, NOT as a finished design. If running on a marketing site, expect 2-3 manual iteration cycles on the wireframes before they read as a marketing surface rather than a technical drawing. Best results when a finished hero asset (banner, photograph, brand illustration) already exists — embed it directly per [[feedback-use-real-assets-when-they-exist]].
+- **`conversion-funnel` (UNTESTED):** Spec exists but no production run validated.
+- **`mobile-app` (UNTESTED):** Mobbin source mix supports it (mobile platform filter) but no end-to-end run validated.
+- **`docs-site` (UNTESTED):** Same — workflow supports it but unproven.
+
+The hard rules (1-18) all transfer unchanged across these verticals. The gap is at the *synthesis-prompt* level — the Phase 5 subagent needs vertical-specific guidance about which design moves to lift and which to suppress, and that guidance is currently calibrated for product-UI synthesis only.
+
+**Recommended approach for non-SaaS verticals (until prompt engineering catches up):** run Phase 1-4.5 (atlas + feedback) to lock the visual register and the reference companies, then HAND OFF to a designer rather than running Phase 5 synthesis. The atlas + feedback JSON together are a usable design brief; the auto-synthesized deck for these verticals is currently more "structured commission brief" than "ready design."
+
 This skill's workflow + rules apply DIRECTLY to:
 - **SaaS product UI** (default framing — internal tools, B2B apps, operator dashboards)
-- **Marketing websites + landing pages** (Stripe.com, Linear.app, Vercel.com style)
-- **Conversion funnels** (signup flow, paywall, checkout, onboarding)
-- **Mobile apps** (iOS / Android product surfaces)
-- **Documentation sites** (docs.stripe.com, vercel.com/docs)
+- **Marketing websites + landing pages** (Stripe.com, Linear.app, Vercel.com style) — *EXPERIMENTAL, see above*
+- **Conversion funnels** (signup flow, paywall, checkout, onboarding) — *UNTESTED*
+- **Mobile apps** (iOS / Android product surfaces) — *UNTESTED*
+- **Documentation sites** (docs.stripe.com, vercel.com/docs) — *UNTESTED*
 
 **How to adapt the workflow for non-product verticals:**
 
