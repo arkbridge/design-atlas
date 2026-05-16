@@ -2,6 +2,16 @@
 
 Per-screen design research using Mobbin's MCP. One alignment interview, exhaustive sitemap, parallel Mobbin queries per screen, one bundled HTML deliverable.
 
+## Status by vertical
+
+- ✅ **SaaS product UI/UX** — *proven.* Use freely.
+- ⚠️ **Marketing websites / single-page manifestos** — *experimental.* Phase 5 synthesis currently drifts toward over-detailed schematic vocabulary on marketing surfaces. Run Phase 1-4.5 (atlas + feedback) and hand off to a designer; do not rely on auto-synthesized decks for this vertical yet.
+- 🔬 **Conversion funnels, mobile apps, docs sites** — *untested.* Workflow supports them but no production run validated.
+
+See `SKILL.md` § Vertical Extensibility for the per-vertical status detail and recommended workflow.
+
+PRs that improve any non-SaaS vertical are very welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). The bar is real-world tested with before/after evidence, not theoretical improvements.
+
 ## What it does
 
 For any SaaS / app idea:
