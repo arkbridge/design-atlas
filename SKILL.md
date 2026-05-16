@@ -246,6 +246,72 @@ These rules emerged from end-to-end runs. Any future run that violates one of th
 
     **Why this rule exists:** A real marketing-site atlas run shipped with 53 Mobbin product-UI references while the prose recommendations correctly named marketing-site anchors (Stripe Press, Linear Method, Brilliant, Peec AI, Deputy). The reference cards and the spec were arguing about different categories — the user opened the atlas and saw product dashboards for what should have been a marketing-site design. Caught on review; rebuild required. Future runs that violate this rule will reproduce the same mismatch.
 
+19. **Granular brand decisions captured as VISUAL PICKERS inside the Phase 4 atlas — never as pre-atlas text questions.**
+
+    Phase 1 alignment captures abstract direction (`register`, `palette_anchor` color hint, `type_stance` like "friendly grotesque", `motion_appetite` like "kinetic"). That is necessary but NOT sufficient. Phase 5 synthesis needs granular brand-grammar decisions locked: exact typeface name, exact accent hex, gradient appetite, corner-radius preference, depth/elevation register, motion intensity, iconography library, hero-asset register. Without these locked, Phase 5 defaults to safe-grotesque + flat-color + sharp-corners + zero-gradient = sloppy unrefined output.
+
+    **The wrong way to capture them:** asking the user pre-atlas via `AskUserQuestion` text questions ("what gradient appetite do you want? subtle / heavy / none?"). The user is not a designer-with-design-vocabulary at the alignment-interview stage; they don't know yet how strong a gradient they want without seeing examples.
+
+    **The right way to capture them (LOCKED):** the Phase 4 atlas HTML MUST include a `<section class="brand-decisions">` at the top — ABOVE the per-screen reference grid — with **rendered visual pickers** for each granular decision. The user makes brand calls visually while looking at examples, and those calls are persisted to the same feedback localStorage + exported in the same feedback JSON the user sends back.
+
+    **Required visual pickers (8 minimum):**
+
+    | Decision | Format | Options |
+    |---|---|---|
+    | Typeface | Rendered sample (same headline + body text in each option) | 4-6 typefaces: Inter / SF Pro Display / Geist / IBM Plex Sans / Söhne-equivalent / a display-class option matching register |
+    | Accent color | 8 saturated swatches (60×60 squares with hex code) | Project-relevant accents drawn from the locked register (gamified → Duolingo green, Strava orange, electric blue, coral, purple, etc) |
+    | Gradient appetite | Rendered button samples | None (solid) / Subtle (single-color soft gradient) / Heavy (multi-stop CTA gradient) / Animated (continuous gradient shift) |
+    | Corner radius | Same button at 5 different radii | Sharp (0) / Slight (4px) / Soft (8px) / Rounded (12px) / Heavy (20px) / Pill (full) |
+    | Depth / elevation | Same card at 4 depth registers | Flat (no shadow) / Subtle (single soft shadow) / Layered (ambient + direct shadows) / Floating (heavy multi-layer) |
+    | Motion intensity | 4 animated samples (real CSS animation on each card) | Still / Subtle fade / Kinetic transforms+scale / Continuous micro-animations |
+    | Iconography library | Same icon (e.g. home) rendered in 4 libraries | Lucide / SF Symbols / Phosphor / Material |
+    | Hero asset register | 4 example types | Commissioned illustration / Mascot or character / 3D object / Photography / Type-only |
+
+    Each picker is a radio group where the **rendered visual IS the clickable choice** (not a label next to it). Selections persist to the same localStorage as per-ref ratings, export with the feedback JSON as a `brand_decisions: {typeface: "...", accent_hex: "...", gradient_appetite: "...", corner_radius: "...", depth_register: "...", motion_intensity: "...", iconography: "...", hero_asset: "..."}` block.
+
+    Phase 5 synthesis reads `brand_decisions` from feedback.json BEFORE producing tokens. The locked decisions are passed verbatim into the synthesis subagent prompt — no defaulting, no inference.
+
+    **Why this rule exists:** A real mobile-app design-system synthesis run shipped flat-CSS-quality wireframes (no gradients, sharp corners, no layered shadows, no motion). Phase 1 had captured only abstract anchors. The synthesis subagent reasonably defaulted to safe rendering choices in the absence of granular decisions. User feedback was direct: *"it looks horrible and very sloppy. None of the smoothness or refinement you'd see from an actual app published to the app store. There are no gradients anywhere, no refined elements, no motion elements, no rounded buttons. Why are these issues happening?"* The fix is to capture the granular decisions where the user can make them visually — inside the atlas they're already triaging — not via abstract pre-atlas questions.
+
+20. **Premium polish baseline (concrete requirements, not vibes).**
+
+    Hard Rule 6 (discriminator audit) lists primitives to check. This rule defines what "polish parity" means in concrete terms a subagent cannot self-report away.
+
+    **Every component specimen + every wireframe MUST satisfy ALL of:**
+
+    a. **≥1 gradient anchor** — at minimum: background gradient on hero, OR gradient fill on primary CTA, OR animated gradient on a key element. Solid-color-everywhere is a fail unless Phase 1's `gradient_appetite` locked to `none` (rare).
+
+    b. **Corner radii match Phase 1's locked `corner_radius` decision** — verified by audit. If locked to "12px", every interactive primitive (button, card, input, chip) renders at 12px ±2. Sharp corners on rounded register, or rounded corners on sharp register, are both fails.
+
+    c. **≥1 layered shadow on every elevated surface** — cards, modals, popovers, FABs. "Layered" means ≥2 shadow values (ambient + direct, per `ui-design-system` skill canonical: `0_1px_3px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.24)`). Single thin shadow on cards = fail. Flat surfaces with no shadow on cards = fail (unless Phase 1's `depth_register` locked to `flat`).
+
+    d. **Hover / press / loading / disabled state described per interactive primitive** — not just the default state. Either rendered as additional specimens or documented in a state-vocabulary table next to each component.
+
+    e. **Concrete motion descriptor per interaction** — every button needs a press feedback (transform scale 0.97 + opacity 0.9 + 80ms, or similar); every modal/sheet/popover needs an enter+exit motion descriptor; every loading state has a shimmer/skeleton animation. Honor `prefers-reduced-motion`.
+
+    f. **Real product content, never Lorem** — every component specimen and wireframe uses copy that could ship in the actual product. Lorem / "Component Title" / "Lorem ipsum dolor" = automatic fail.
+
+    g. **Light + dark mode rendering of every component** — not just the deck chrome. Each spec rendered or color-token-mapped for both registers (per Hard Rule 3). Single-register components = fail.
+
+    h. **Touch targets ≥44×44px** on mobile components, ≥24×24px on desktop (per `ui-design-system` skill). Verified per primitive.
+
+    **Audit enforcement:** Phase 5.75 Gate A is now PROGRAMMATIC. The synthesis output must include `polish-audit.json` listing every component + which of (a)-(h) it satisfies. Parent (orchestrator) reads the audit JSON and fails ship if any primitive misses ≥1 requirement. NO self-reported PASS from the subagent counts.
+
+    **Why this rule exists:** Same incident as Rule 19. Hard Rule 6 was qualitative ("if ANY primitive is at default-CSS quality, fix it") and subagents declared "polish parity achieved" without applying gradients/depth/radius/motion. Requirements (a)-(h) make polish parity verifiable instead of declarable. User feedback: *"no gradients anywhere, no refined elements, no motion elements, no rounded buttons."* Each of those is now a Gate A failure that blocks ship.
+
+21. **Audit gates are PARENT-RUN, not subagent-self-reported.**
+
+    Hard Rule 11.h (text-overflow audit) and Hard Rule 20 (polish baseline) both define audit procedures. They are NOT discharged by a subagent writing "Gate C: PASS" in its report. The synthesis subagent MUST emit:
+
+    - `text-overflow-audit.json` — list of every `<text>` element's parent viewBox + estimated width + overflow/overlap violations (empty array if none)
+    - `polish-audit.json` — list of every component + per-requirement check from Hard Rule 20 (a)-(h)
+
+    The PARENT (orchestrator / Phase 4 caller) reads these JSON files and runs final assertions. If either file is missing, or either contains violations, the deck is REJECTED and the subagent is re-dispatched with the violations as the prompt to fix.
+
+    Self-reported PASS in agent prose is not evidence. Files are evidence.
+
+    **Why this rule exists:** Same incident as Rule 19. Multiple "Gate X: PASS" lines in the synthesis report; multiple real violations visible in the rendered output. The verification path was the gap, not the rules themselves.
+
 ---
 
 ## Vertical Extensibility — beyond SaaS products
